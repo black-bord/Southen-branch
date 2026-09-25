@@ -7,39 +7,21 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Build with Buildozer Action
+        uses: ArtemSBulgakov/buildozer-action@v1
+        id: buildozer
         with:
-          python-version: '3.11'
-
-      - name: Install System Dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev cython3
-
-      - name: Install Buildozer and Cython
-        run: |
-          pip install --upgrade pip
-          pip install buildozer cython==0.29.36
-
-      - name: Build APK with Buildozer
-        run: |
-          # 自动兼容：如果存在 android_app 子目录就进入，如果在根目录就直接打包
-          if [ -d "android_app" ]; then
-            cd android_app
-          fi
-          buildozer android debug
+          command: buildozer android debug
+          buildozer_version: stable
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: FinancePlanner-Android-APK
-          path: |
-            bin/*.apk
-            android_app/bin/*.apk
+          path: ${{ steps.buildozer.outputs.filename }}
