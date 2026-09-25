@@ -30,11 +30,16 @@ jobs:
 
       - name: Build APK with Buildozer
         run: |
-          cd android_app
+          # 自动兼容：如果存在 android_app 子目录就进入，如果在根目录就直接打包
+          if [ -d "android_app" ]; then
+            cd android_app
+          fi
           buildozer android debug
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: FinancePlanner-Android-APK
-          path: android_app/bin/*.apk
+          path: |
+            bin/*.apk
+            android_app/bin/*.apk
