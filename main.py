@@ -43,34 +43,62 @@ except Exception:
 
 # 模拟手机竖屏分辨率（电脑预览时）
 if platform not in ("android", "ios"):
-    Window.size = (410, 840)
+    Window.size = (400, 840)
 
 # ==================== 全局中文字体注册 ====================
 def setup_global_font():
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    local_font = os.path.join(base_dir, "font.ttf")
-    font_file = None
-    if os.path.exists(local_font):
-        font_file = local_font
-    else:
+    # 1. Windows 系统原生字库（优先规避非 ASCII 路径导致的 SDL2 C 层编码问题）
+    if sys.platform == "win32":
         for p in [
             "C:/Windows/Fonts/msyh.ttc",
             "C:/Windows/Fonts/msyh.ttf",
             "C:/Windows/Fonts/simhei.ttf",
-            "/system/fonts/NotoSansSC-Regular.otf",
-            "/system/fonts/NotoSansCJK-Regular.ttc",
-            "/system/fonts/DroidSansFallback.ttf",
         ]:
             if os.path.exists(p):
-                font_file = p
-                break
-    if font_file:
+                try:
+                    LabelBase.register(DEFAULT_FONT, p)
+                    LabelBase.register("AppFont", p)
+                    return p
+                except Exception:
+                    pass
+
+    # 2. 本地捆绑 font.ttf
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    local_font = os.path.join(base_dir, "font.ttf")
+    if os.path.exists(local_font):
+        safe_font = local_font
         try:
-            LabelBase.register(DEFAULT_FONT, font_file)
-            LabelBase.register("AppFont", font_file)
-            return font_file
+            local_font.encode('ascii')
+        except UnicodeEncodeError:
+            import tempfile, shutil
+            temp_path = os.path.join(tempfile.gettempdir(), "app_kivy_font.ttf")
+            try:
+                if not os.path.exists(temp_path) or os.path.getsize(temp_path) != os.path.getsize(local_font):
+                    shutil.copyfile(local_font, temp_path)
+                safe_font = temp_path
+            except Exception:
+                safe_font = local_font
+
+        try:
+            LabelBase.register(DEFAULT_FONT, safe_font)
+            LabelBase.register("AppFont", safe_font)
+            return safe_font
         except Exception:
             pass
+
+    # 3. 安卓与 Linux 常见中文字体
+    for p in [
+        "/system/fonts/NotoSansSC-Regular.otf",
+        "/system/fonts/NotoSansCJK-Regular.ttc",
+        "/system/fonts/DroidSansFallback.ttf",
+    ]:
+        if os.path.exists(p):
+            try:
+                LabelBase.register(DEFAULT_FONT, p)
+                LabelBase.register("AppFont", p)
+                return p
+            except Exception:
+                pass
     return "Roboto"
 
 FONT_PATH = setup_global_font()
@@ -201,7 +229,7 @@ THEMES = {
 
 # ==================== 现代微交互组件 ====================
 class ModernButton(Button):
-    def __init__(self, bg_color=(0.14, 0.42, 0.95, 1), radius=8, **kwargs):
+    def __init__(self, bg_color=(0.14, 0.42, 0.95, 1), radius=16, **kwargs):
         super().__init__(**kwargs)
         self.background_color = (0, 0, 0, 0)
         self.background_normal = ''
@@ -238,7 +266,7 @@ class LockBadgeButton(ModernButton):
     def __init__(self, **kwargs):
         kwargs.setdefault('text', '未锁')
         kwargs.setdefault('font_size', dp(10))
-        kwargs.setdefault('radius', 11)
+        kwargs.setdefault('radius', 12)
         kwargs.setdefault('size_hint', (None, None))
         kwargs.setdefault('size', (dp(44), dp(24)))
         kwargs.setdefault('bg_color', (1.0, 0.92, 0.95, 1))
@@ -299,8 +327,50 @@ class LockBadgeButton(ModernButton):
                 self.bold = False
 
 
+class RoundedInput(TextInput):
+    """现代全圆角输入框：剔除安卓生硬方框黑线，自带圆角防溢底衬与对比度前景色保真"""
+    def __init__(self, bg_color=(0.94, 0.97, 1.0, 1.0), radius=10, **kwargs):
+        kwargs.setdefault('multiline', False)
+        kwargs.setdefault('background_color', (0, 0, 0, 0))
+        kwargs.setdefault('background_normal', '')
+        kwargs.setdefault('background_active', '')
+        if 'foreground_color' not in kwargs:
+            kwargs['foreground_color'] = (0.09, 0.14, 0.24, 1.0)
+        if 'cursor_color' not in kwargs:
+            kwargs['cursor_color'] = kwargs['foreground_color']
+        if FONT_PATH and FONT_PATH != "Roboto":
+            kwargs.setdefault('font_name', FONT_PATH)
+        super().__init__(**kwargs)
+        self.bg_color = list(bg_color)
+        self.radius = dp(radius)
+        with self.canvas.before:
+            self.c_bg = Color(*self.bg_color)
+            self.rect_bg = RoundedRectangle(pos=self.pos, size=self.size, radius=[self.radius])
+            # 必须在 canvas.before 末尾显式绑定并恢复 foreground_color，确保 text 绘制时颜色不被背景色覆盖
+            self.c_fg = Color(*self.foreground_color)
+        self.bind(pos=self._update_geom, size=self._update_geom)
+        self.bind(foreground_color=self._update_fg)
+
+    def _update_geom(self, *a):
+        self.rect_bg.pos = self.pos
+        self.rect_bg.size = self.size
+
+    def _update_fg(self, *a):
+        if hasattr(self, 'c_fg'):
+            self.c_fg.rgba = self.foreground_color
+
+    def set_theme_input(self, bg_color, text_color=None):
+        self.bg_color = list(bg_color)
+        self.c_bg.rgba = self.bg_color
+        if text_color is not None:
+            self.foreground_color = text_color
+            self.cursor_color = text_color
+            if hasattr(self, 'c_fg'):
+                self.c_fg.rgba = text_color
+
+
 class SoftCard(BoxLayout):
-    def __init__(self, bg_color=(1, 1, 1, 1), radius=12, auto_height=True, padding=dp(10), spacing=dp(6), **kwargs):
+    def __init__(self, bg_color=(1, 1, 1, 1), radius=14, auto_height=True, padding=dp(10), spacing=dp(6), **kwargs):
         super().__init__(**kwargs)
         self.padding = padding
         self.spacing = spacing
@@ -628,6 +698,7 @@ class FinancePlannerApp(App):
         self.custom_items = []
         self.expense_widgets = []
         self.active_identity = "职场新人（1-3年）"
+        self.active_tab_idx = 0
         self.is_initializing = True
 
         # 读取持久化 JSON 数据
@@ -640,7 +711,7 @@ class FinancePlannerApp(App):
             self.root_bg_rect = RoundedRectangle(pos=(0, 0), size=Window.size)
         self.root_layout.bind(pos=lambda *a: self._update_root_bg(), size=lambda *a: self._update_root_bg())
 
-        # 1. 顶部 Header 现代扁平导航条 (清爽无杂乱切换按钮)
+        # 1. 顶部 Header 现代扁平导航条
         self.header = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(46), padding=[dp(14), dp(4)])
         with self.header.canvas.before:
             self.header_bg_color = Color(*THEMES[self.current_theme_key]["bg_header"])
@@ -653,16 +724,47 @@ class FinancePlannerApp(App):
         self.header.add_widget(self.lbl_app_title)
         self.root_layout.add_widget(self.header)
 
-        # 2. 中间滚动主体
-        scroll = ScrollView(size_hint=(1, 1), do_scroll_x=False)
-        self.content = BoxLayout(orientation='vertical', size_hint_y=None, padding=dp(10), spacing=dp(8))
-        self.content.bind(minimum_height=self.content.setter('height'))
+        # 2. 中间可滚动主体
+        self.scroll = ScrollView(size_hint=(1, 1), do_scroll_x=False)
+        self.scroll_content = BoxLayout(orientation='vertical', size_hint_y=None, padding=dp(10), spacing=dp(8))
+        self.scroll_content.bind(minimum_height=self.scroll_content.setter('height'))
+        self.scroll.add_widget(self.scroll_content)
+        self.root_layout.add_widget(self.scroll)
 
-        # ==================== 大号计算器核心数显大屏 ====================
+        # 3. 底部现代分栏导航栏 (分三栏置底：收支算盘 / 开销细目 / 规划工具)
+        self.tab_bar = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(50),
+                                 padding=[dp(10), dp(6)], spacing=dp(8))
+        with self.tab_bar.canvas.before:
+            self.tab_bar_bg_color = Color(*THEMES[self.current_theme_key]["bg_card"])
+            self.tab_bar_bg_rect = RoundedRectangle(pos=(0, 0), size=(Window.width, dp(50)), radius=[dp(14), dp(14), 0, 0])
+        self.tab_bar.bind(pos=lambda *a: self._update_tab_bar_bg(), size=lambda *a: self._update_tab_bar_bg())
+
+        self.btn_tab_overview = ModernButton(text="收支算盘", font_size=dp(12), bold=True,
+                                             size_hint=(1, 1), radius=14)
+        self.btn_tab_overview.bind(on_press=lambda *a: self.switch_tab(0))
+        self.tab_bar.add_widget(self.btn_tab_overview)
+
+        self.btn_tab_details = ModernButton(text="开销细目", font_size=dp(12),
+                                            size_hint=(1, 1), radius=14)
+        self.btn_tab_details.bind(on_press=lambda *a: self.switch_tab(1))
+        self.tab_bar.add_widget(self.btn_tab_details)
+
+        self.btn_tab_tools = ModernButton(text="规划工具", font_size=dp(12),
+                                          size_hint=(1, 1), radius=14)
+        self.btn_tab_tools.bind(on_press=lambda *a: self.switch_tab(2))
+        self.tab_bar.add_widget(self.btn_tab_tools)
+
+        self.root_layout.add_widget(self.tab_bar)
+
+        # =====================================================================
+        # 页面一：【收支算盘】(核心数显大屏 + 收入/还债/目标控制 + 简明四柱图)
+        # =====================================================================
+        self.page_overview = BoxLayout(orientation='vertical', size_hint_y=None, spacing=dp(8))
+        self.page_overview.bind(minimum_height=self.page_overview.setter('height'))
+
+        # 大号计算器核心数显大屏
         self.display_card = SoftCard(bg_color=THEMES[self.current_theme_key]["bg_display"], radius=14, padding=dp(10), spacing=dp(4))
-        
         formula_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(38), spacing=dp(2))
-        
         self.lbl_disp_income = Label(text="到手 ￥0", font_size=dp(13), bold=True,
                                      color=THEMES[self.current_theme_key]["accent"], halign='center', valign='middle')
         self.lbl_disp_minus_debt = Label(text="", font_size=dp(14), bold=True,
@@ -677,7 +779,7 @@ class FinancePlannerApp(App):
                                     color=THEMES[self.current_theme_key]["text_secondary"], size_hint_x=None, width=dp(10))
         self.lbl_disp_surplus = Label(text="结余 ￥0", font_size=dp(14), bold=True,
                                       color=THEMES[self.current_theme_key]["accent_surplus"], halign='center', valign='middle')
-        
+
         formula_box.add_widget(self.lbl_disp_income)
         formula_box.add_widget(self.lbl_disp_minus_debt)
         formula_box.add_widget(self.lbl_disp_debt)
@@ -687,52 +789,48 @@ class FinancePlannerApp(App):
         formula_box.add_widget(self.lbl_disp_surplus)
         self.display_card.add_widget(formula_box)
 
-        # 状态副标题（自动与目标存储同步对比）
         self.lbl_disp_sub = Label(text="支出占比 0% | 自由结余率 0%", font_size=dp(11),
                                   color=THEMES[self.current_theme_key]["text_secondary"], size_hint_y=None, height=dp(18), halign='center')
         self.display_card.add_widget(self.lbl_disp_sub)
+        self.page_overview.add_widget(self.display_card)
 
-        self.content.add_widget(self.display_card)
-
-        # ==================== 顶部交互控制卡片 ====================
-        self.ctrl_card = SoftCard(bg_color=THEMES[self.current_theme_key]["bg_card"], radius=12, padding=dp(10), spacing=dp(8))
+        # 核心交互控制卡片
+        self.ctrl_card = SoftCard(bg_color=THEMES[self.current_theme_key]["bg_card"], radius=14, padding=dp(10), spacing=dp(8))
 
         # 第一排：月收入输入 + 性别切换双胶囊
         row1 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(36), spacing=dp(8))
-        
         self.lbl_in_title = Label(text="税前月薪:", font_size=dp(12), color=THEMES[self.current_theme_key]["text_primary"],
                                   size_hint_x=None, width=dp(60), halign='left')
         self.lbl_in_title.bind(size=self.lbl_in_title.setter('text_size'))
         row1.add_widget(self.lbl_in_title)
 
-        self.in_income = TextInput(text="4200", multiline=False, input_filter='float',
-                                   font_size=dp(13), size_hint=(0.42, 1), padding=[dp(8), dp(8)],
-                                   foreground_color=THEMES[self.current_theme_key]["text_primary"],
-                                   background_color=THEMES[self.current_theme_key]["bg_input"])
+        self.in_income = RoundedInput(text="4200", input_filter='float',
+                                      font_size=dp(13), size_hint=(0.42, 1), padding=[dp(8), dp(8)],
+                                      bg_color=THEMES[self.current_theme_key]["bg_input"],
+                                      foreground_color=THEMES[self.current_theme_key]["text_primary"])
         self.in_income.bind(text=self.on_input_change)
         row1.add_widget(self.in_income)
 
-        self.btn_male = ModernButton(text="男生版", font_size=dp(12),
+        self.btn_male = ModernButton(text="男生版", font_size=dp(12), radius=14,
                                      size_hint=(0.28, 1), bg_color=(1, 1, 1, 1),
                                      color=THEMES[self.current_theme_key]["text_secondary"])
         self.btn_male.bind(on_press=lambda *a: self.switch_gender("male"))
         row1.add_widget(self.btn_male)
 
-        self.btn_female = ModernButton(text="女生版", font_size=dp(12), bold=True,
+        self.btn_female = ModernButton(text="女生版", font_size=dp(12), bold=True, radius=14,
                                        size_hint=(0.28, 1), bg_color=THEMES[self.current_theme_key]["accent_female"],
                                        color=(1, 1, 1, 1))
         self.btn_female.bind(on_press=lambda *a: self.switch_gender("female"))
         row1.add_widget(self.btn_female)
-
         self.ctrl_card.add_widget(row1)
 
-        # 第二排：现代化身份选择卡片按钮 + 一键智能精算按钮
+        # 第二排：身份选择 + 一键智能精算
         row2 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(38), spacing=dp(8))
-
         self.btn_identity = ModernButton(
             text=f"{self.active_identity}  ▼",
             font_size=dp(11),
             size_hint=(0.55, 1),
+            radius=14,
             bg_color=THEMES[self.current_theme_key]["bg_input"],
             color=THEMES[self.current_theme_key]["text_primary"]
         )
@@ -744,25 +842,25 @@ class FinancePlannerApp(App):
             font_size=dp(12),
             bold=True,
             size_hint=(0.45, 1),
+            radius=14,
             bg_color=THEMES[self.current_theme_key]["btn_plan_bg"],
             color=THEMES[self.current_theme_key]["btn_plan_fg"]
         )
         self.btn_smart_plan.bind(on_press=self.do_smart_plan)
         row2.add_widget(self.btn_smart_plan)
-
         self.ctrl_card.add_widget(row2)
 
-        # 第三排：月度还债/欠款输入 + 动态状态 (房贷/车贷/信用卡/花呗/分期等)
+        # 第三排：月还负债
         row_debt = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(32), spacing=dp(8))
         self.lbl_debt_title = Label(text="月还负债:", font_size=dp(12), color=THEMES[self.current_theme_key]["text_secondary"],
                                     size_hint_x=None, width=dp(60), halign='left')
         self.lbl_debt_title.bind(size=self.lbl_debt_title.setter('text_size'))
         row_debt.add_widget(self.lbl_debt_title)
 
-        self.in_debt = TextInput(text="0", multiline=False, input_filter='float',
-                                 font_size=dp(12), size_hint=(0.38, 1), padding=[dp(8), dp(6)],
-                                 foreground_color=THEMES[self.current_theme_key]["text_primary"],
-                                 background_color=THEMES[self.current_theme_key]["bg_input"])
+        self.in_debt = RoundedInput(text="0", input_filter='float',
+                                    font_size=dp(12), size_hint=(0.38, 1), padding=[dp(8), dp(6)],
+                                    bg_color=THEMES[self.current_theme_key]["bg_input"],
+                                    foreground_color=THEMES[self.current_theme_key]["text_primary"])
         self.in_debt.bind(text=self.on_input_change)
         row_debt.add_widget(self.in_debt)
 
@@ -771,20 +869,19 @@ class FinancePlannerApp(App):
                                      size_hint=(0.62, 1), halign='center', valign='middle')
         self.lbl_debt_status.bind(size=self.lbl_debt_status.setter('text_size'))
         row_debt.add_widget(self.lbl_debt_status)
-
         self.ctrl_card.add_widget(row_debt)
 
-        # 第四排：目标存储金额输入 (自动持久化)
+        # 第四排：目标储蓄
         row3 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(32), spacing=dp(8))
         self.lbl_target_title = Label(text="目标储蓄:", font_size=dp(12), color=THEMES[self.current_theme_key]["text_secondary"],
                                       size_hint_x=None, width=dp(60), halign='left')
         self.lbl_target_title.bind(size=self.lbl_target_title.setter('text_size'))
         row3.add_widget(self.lbl_target_title)
 
-        self.in_target_surplus = TextInput(text="500", multiline=False, input_filter='float',
-                                           font_size=dp(12), size_hint=(0.38, 1), padding=[dp(8), dp(6)],
-                                           foreground_color=THEMES[self.current_theme_key]["text_primary"],
-                                           background_color=THEMES[self.current_theme_key]["bg_input"])
+        self.in_target_surplus = RoundedInput(text="500", input_filter='float',
+                                              font_size=dp(12), size_hint=(0.38, 1), padding=[dp(8), dp(6)],
+                                              bg_color=THEMES[self.current_theme_key]["bg_input"],
+                                              foreground_color=THEMES[self.current_theme_key]["text_primary"])
         self.in_target_surplus.bind(text=self.on_input_change)
         row3.add_widget(self.in_target_surplus)
 
@@ -793,10 +890,9 @@ class FinancePlannerApp(App):
                                        size_hint=(0.62, 1), halign='center', valign='middle')
         self.lbl_target_status.bind(size=self.lbl_target_status.setter('text_size'))
         row3.add_widget(self.lbl_target_status)
-
         self.ctrl_card.add_widget(row3)
 
-        # 第四排：建议储蓄目标提示与一键应用计算
+        # 第五排：建议储蓄目标提示与一键应用计算
         row4 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(32), spacing=dp(6))
         self.lbl_sug_title = Label(text="建议目标:", font_size=dp(12), color=THEMES[self.current_theme_key]["text_secondary"],
                                    size_hint_x=None, width=dp(60), halign='left')
@@ -814,6 +910,7 @@ class FinancePlannerApp(App):
             font_size=dp(11),
             bold=True,
             size_hint=(0.58, 1),
+            radius=14,
             bg_color=THEMES[self.current_theme_key]["btn_plan_bg"],
             color=THEMES[self.current_theme_key]["btn_plan_fg"]
         )
@@ -821,100 +918,267 @@ class FinancePlannerApp(App):
         row4.add_widget(self.btn_apply_sug)
         self.ctrl_card.add_widget(row4)
 
-        # 第五排：三阶储蓄比例快捷胶囊 (极简10% / 稳健20% / 进阶30%)
+        # 第六排：三阶储蓄比例快捷胶囊 (极简10% / 稳健20% / 进阶30%)
         row5 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(28), spacing=dp(6))
-        self.btn_ratio_10 = ModernButton(text="极简 10%: ￥180", font_size=dp(10), size_hint=(1, 1),
+        self.btn_ratio_10 = ModernButton(text="极简 10%: ￥180", font_size=dp(10), size_hint=(1, 1), radius=12,
                                          bg_color=THEMES[self.current_theme_key]["bg_input"],
                                          color=THEMES[self.current_theme_key]["text_primary"])
         self.btn_ratio_10.bind(on_press=lambda *a: self.apply_ratio_target(0.10))
         row5.add_widget(self.btn_ratio_10)
 
-        self.btn_ratio_20 = ModernButton(text="黄金 20%: ￥360", font_size=dp(10), bold=True, size_hint=(1.15, 1),
+        self.btn_ratio_20 = ModernButton(text="黄金 20%: ￥360", font_size=dp(10), bold=True, size_hint=(1.15, 1), radius=12,
                                          bg_color=THEMES[self.current_theme_key]["bg_input"],
                                          color=THEMES[self.current_theme_key]["accent"])
         self.btn_ratio_20.bind(on_press=lambda *a: self.apply_ratio_target(0.20))
         row5.add_widget(self.btn_ratio_20)
 
-        self.btn_ratio_30 = ModernButton(text="进阶 30%: ￥540", font_size=dp(10), size_hint=(1, 1),
+        self.btn_ratio_30 = ModernButton(text="进阶 30%: ￥540", font_size=dp(10), size_hint=(1, 1), radius=12,
                                          bg_color=THEMES[self.current_theme_key]["bg_input"],
                                          color=THEMES[self.current_theme_key]["text_primary"])
         self.btn_ratio_30.bind(on_press=lambda *a: self.apply_ratio_target(0.30))
         row5.add_widget(self.btn_ratio_30)
         self.ctrl_card.add_widget(row5)
 
-        self.content.add_widget(self.ctrl_card)
+        self.page_overview.add_widget(self.ctrl_card)
 
-        # ==================== 极简无框开销清单 ====================
-        self.items_card = SoftCard(bg_color=THEMES[self.current_theme_key]["bg_card"], radius=12, padding=dp(10), spacing=dp(6))
-
-        list_head = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(26), spacing=dp(6))
-        self.lbl_list_title = Label(text="支出细目精算 (锁定项自动保护并重平衡)", font_size=dp(12), bold=True,
-                                    color=THEMES[self.current_theme_key]["accent"], halign='left')
-        self.lbl_list_title.bind(size=self.lbl_list_title.setter('text_size'))
-        list_head.add_widget(self.lbl_list_title)
-
-        self.btn_lock = ModernButton(text="全锁", font_size=dp(10), size_hint=(None, 1), width=dp(46),
-                                     bg_color=(1, 1, 1, 1), color=THEMES[self.current_theme_key]["accent"])
-        self.btn_lock.bind(on_press=self.lock_all)
-        list_head.add_widget(self.btn_lock)
-
-        self.btn_unlock = ModernButton(text="全解", font_size=dp(10), size_hint=(None, 1), width=dp(46),
-                                       bg_color=(1, 1, 1, 1), color=THEMES[self.current_theme_key]["accent"])
-        self.btn_unlock.bind(on_press=self.unlock_all)
-        list_head.add_widget(self.btn_unlock)
-
-        self.items_card.add_widget(list_head)
-
-        self.expense_container = BoxLayout(orientation='vertical', spacing=dp(3), size_hint_y=None)
-        self.expense_container.bind(minimum_height=self.expense_container.setter('height'))
-        self.items_card.add_widget(self.expense_container)
-
-        self.content.add_widget(self.items_card)
-
-        # ==================== 极简收支对比柱状图 ====================
-        self.chart_card = SoftCard(bg_color=THEMES[self.current_theme_key]["bg_card"], radius=12, padding=dp(10), spacing=dp(4))
+        # 极简收支对比柱状图
+        self.chart_card = SoftCard(bg_color=THEMES[self.current_theme_key]["bg_card"], radius=14, padding=dp(10), spacing=dp(4))
         self.cashflow_chart = MiniCashflowWidget()
         self.chart_card.add_widget(self.cashflow_chart)
-        self.content.add_widget(self.chart_card)
+        self.page_overview.add_widget(self.chart_card)
 
-        # ==================== 底部极简实用工具栏 (分层舒适布局) ====================
-        self.tools_card = SoftCard(bg_color=THEMES[self.current_theme_key]["bg_card"], radius=12, padding=dp(8), spacing=dp(6))
+        # 直通细目页引导圆角大胶囊
+        self.btn_jump_details = ModernButton(
+            text="去配置各项支出细目 →",
+            font_size=dp(12),
+            bold=True,
+            size_hint_y=None,
+            height=dp(40),
+            radius=16,
+            bg_color=THEMES[self.current_theme_key]["btn_plan_bg"],
+            color=THEMES[self.current_theme_key]["btn_plan_fg"]
+        )
+        self.btn_jump_details.bind(on_press=lambda *a: self.switch_tab(1))
+        self.page_overview.add_widget(self.btn_jump_details)
 
-        tools_row1 = BoxLayout(orientation='horizontal', spacing=dp(6), size_hint_y=None, height=dp(34))
+        # =====================================================================
+        # 页面二：【开销细目】(分三栏：基础生存刚需 / 个性品质生活 / 机动与补充项)
+        # =====================================================================
+        self.page_details = BoxLayout(orientation='vertical', size_hint_y=None, spacing=dp(8))
+        self.page_details.bind(minimum_height=self.page_details.setter('height'))
+
+        # 顶部总控卡片 (总计 + 全锁/全解)
+        self.details_summary_card = SoftCard(bg_color=THEMES[self.current_theme_key]["bg_card"], radius=14, padding=dp(10), spacing=dp(6))
+        sum_row = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(30), spacing=dp(6))
+        self.lbl_details_summary = Label(
+            text="支出总计: ￥0  |  到手: ￥0  |  结余: ￥0",
+            font_size=dp(11),
+            bold=True,
+            color=THEMES[self.current_theme_key]["text_primary"],
+            size_hint_x=1,
+            halign='left',
+            valign='middle'
+        )
+        self.lbl_details_summary.bind(size=self.lbl_details_summary.setter('text_size'))
+        sum_row.add_widget(self.lbl_details_summary)
+
+        self.btn_lock = ModernButton(text="全锁", font_size=dp(10), size_hint=(None, 1), width=dp(46), radius=12,
+                                     bg_color=(1, 1, 1, 1), color=THEMES[self.current_theme_key]["accent"])
+        self.btn_lock.bind(on_press=self.lock_all)
+        sum_row.add_widget(self.btn_lock)
+
+        self.btn_unlock = ModernButton(text="全解", font_size=dp(10), size_hint=(None, 1), width=dp(46), radius=12,
+                                       bg_color=(1, 1, 1, 1), color=THEMES[self.current_theme_key]["accent"])
+        self.btn_unlock.bind(on_press=self.unlock_all)
+        sum_row.add_widget(self.btn_unlock)
+        self.details_summary_card.add_widget(sum_row)
+        self.page_details.add_widget(self.details_summary_card)
+
+        # 【第一栏·基础生存刚需】
+        self.card_essential = SoftCard(bg_color=THEMES[self.current_theme_key]["bg_card"], radius=14, padding=dp(10), spacing=dp(6))
+        self.lbl_title_essential = Label(
+            text="【第一栏·基础生存刚需】 (三餐、房租、通勤、话费、医疗等)",
+            font_size=dp(12),
+            bold=True,
+            color=THEMES[self.current_theme_key]["accent"],
+            size_hint_y=None,
+            height=dp(24),
+            halign='left'
+        )
+        self.lbl_title_essential.bind(size=self.lbl_title_essential.setter('text_size'))
+        self.card_essential.add_widget(self.lbl_title_essential)
+
+        self.box_essential = BoxLayout(orientation='vertical', spacing=dp(4), size_hint_y=None)
+        self.box_essential.bind(minimum_height=self.box_essential.setter('height'))
+        self.card_essential.add_widget(self.box_essential)
+        self.page_details.add_widget(self.card_essential)
+
+        # 【第二栏·个性品质生活】
+        self.card_lifestyle = SoftCard(bg_color=THEMES[self.current_theme_key]["bg_card"], radius=14, padding=dp(10), spacing=dp(6))
+        self.lbl_title_lifestyle = Label(
+            text="【第二栏·品质生活画像】 (美妆穿搭、百货、数码、萌宠、社交等)",
+            font_size=dp(12),
+            bold=True,
+            color=THEMES[self.current_theme_key]["accent_female"],
+            size_hint_y=None,
+            height=dp(24),
+            halign='left'
+        )
+        self.lbl_title_lifestyle.bind(size=self.lbl_title_lifestyle.setter('text_size'))
+        self.card_lifestyle.add_widget(self.lbl_title_lifestyle)
+
+        self.box_lifestyle = BoxLayout(orientation='vertical', spacing=dp(4), size_hint_y=None)
+        self.box_lifestyle.bind(minimum_height=self.box_lifestyle.setter('height'))
+        self.card_lifestyle.add_widget(self.box_lifestyle)
+        self.page_details.add_widget(self.card_lifestyle)
+
+        # 【第三栏·机动与补充项】
+        self.card_growth = SoftCard(bg_color=THEMES[self.current_theme_key]["bg_card"], radius=14, padding=dp(10), spacing=dp(6))
+        self.lbl_title_growth = Label(
+            text="【第三栏·机动与补充项】 (自我成长提升、机动备用金与自定义项)",
+            font_size=dp(12),
+            bold=True,
+            color=THEMES[self.current_theme_key]["accent"],
+            size_hint_y=None,
+            height=dp(24),
+            halign='left'
+        )
+        self.lbl_title_growth.bind(size=self.lbl_title_growth.setter('text_size'))
+        self.card_growth.add_widget(self.lbl_title_growth)
+
+        self.box_growth = BoxLayout(orientation='vertical', spacing=dp(4), size_hint_y=None)
+        self.box_growth.bind(minimum_height=self.box_growth.setter('height'))
+        self.card_growth.add_widget(self.box_growth)
+        self.page_details.add_widget(self.card_growth)
+
+        # 直通报告页引导圆角大胶囊
+        self.btn_jump_tools = ModernButton(
+            text="查看全维财务规划报告 →",
+            font_size=dp(12),
+            bold=True,
+            size_hint_y=None,
+            height=dp(40),
+            radius=16,
+            bg_color=THEMES[self.current_theme_key]["btn_plan_bg"],
+            color=THEMES[self.current_theme_key]["btn_plan_fg"]
+        )
+        self.btn_jump_tools.bind(on_press=lambda *a: self.switch_tab(2))
+        self.page_details.add_widget(self.btn_jump_tools)
+
+        # =====================================================================
+        # 页面三：【规划工具】(全维财务报告 + 实用计算工具箱 + 界面风格直选)
+        # =====================================================================
+        self.page_tools = BoxLayout(orientation='vertical', size_hint_y=None, spacing=dp(8))
+        self.page_tools.bind(minimum_height=self.page_tools.setter('height'))
+
+        # 卡片 1: 全维财务规划诊断报告 (内嵌直接阅读 + 一键复制大胶囊)
+        self.report_card = SoftCard(bg_color=THEMES[self.current_theme_key]["bg_card"], radius=14, padding=dp(12), spacing=dp(8))
+        rpt_hdr = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(34), spacing=dp(6))
+        self.lbl_title_report = Label(
+            text="【全维财务规划诊断报告】",
+            font_size=dp(13),
+            bold=True,
+            color=THEMES[self.current_theme_key]["accent"],
+            size_hint_x=1,
+            halign='left',
+            valign='middle'
+        )
+        self.lbl_title_report.bind(size=self.lbl_title_report.setter('text_size'))
+        rpt_hdr.add_widget(self.lbl_title_report)
+
+        self.btn_copy_report = ModernButton(
+            text="一键复制",
+            font_size=dp(11),
+            bold=True,
+            size_hint=(None, 1),
+            width=dp(80),
+            radius=14,
+            bg_color=THEMES[self.current_theme_key]["btn_report_bg"],
+            color=THEMES[self.current_theme_key]["btn_report_fg"]
+        )
+        self.btn_copy_report.bind(on_press=self.copy_embedded_report)
+        rpt_hdr.add_widget(self.btn_copy_report)
+        self.report_card.add_widget(rpt_hdr)
+
+        self.lbl_embedded_report = DynamicLabel(
+            text="",
+            font_size=dp(11),
+            color=THEMES[self.current_theme_key]["text_primary"]
+        )
+        self.report_card.add_widget(self.lbl_embedded_report)
+        self.page_tools.add_widget(self.report_card)
+
+        # 卡片 2: 实用精算工具箱
+        self.tools_box_card = SoftCard(bg_color=THEMES[self.current_theme_key]["bg_card"], radius=14, padding=dp(12), spacing=dp(8))
+        self.lbl_title_tools = Label(
+            text="【实用精算工具箱】",
+            font_size=dp(13),
+            bold=True,
+            color=THEMES[self.current_theme_key]["accent"],
+            size_hint_y=None,
+            height=dp(24),
+            halign='left'
+        )
+        self.lbl_title_tools.bind(size=self.lbl_title_tools.setter('text_size'))
+        self.tools_box_card.add_widget(self.lbl_title_tools)
+
+        tools_grid = BoxLayout(orientation='horizontal', spacing=dp(6), size_hint_y=None, height=dp(36))
         t = THEMES[self.current_theme_key]
-        self.btn_meal = ModernButton(text="餐饮折算", font_size=dp(11), bg_color=t["btn_tool_bg"], color=t["btn_tool_fg"])
+        self.btn_meal = ModernButton(text="餐饮折算", font_size=dp(11), radius=14,
+                                     bg_color=t["btn_tool_bg"], color=t["btn_tool_fg"])
         self.btn_meal.bind(on_press=self.show_meal_calculator)
-        tools_row1.add_widget(self.btn_meal)
+        tools_grid.add_widget(self.btn_meal)
 
-        self.btn_sem = ModernButton(text="学期分摊", font_size=dp(11), bg_color=t["btn_tool_bg"], color=t["btn_tool_fg"])
+        self.btn_sem = ModernButton(text="学期分摊", font_size=dp(11), radius=14,
+                                    bg_color=t["btn_tool_bg"], color=t["btn_tool_fg"])
         self.btn_sem.bind(on_press=self.show_semester_calculator)
-        tools_row1.add_widget(self.btn_sem)
+        tools_grid.add_widget(self.btn_sem)
 
-        self.btn_soc = ModernButton(text="五险一金", font_size=dp(11), bg_color=t["btn_tool_bg"], color=t["btn_tool_fg"])
+        self.btn_soc = ModernButton(text="五险一金", font_size=dp(11), radius=14,
+                                    bg_color=t["btn_tool_bg"], color=t["btn_tool_fg"])
         self.btn_soc.bind(on_press=self.show_social_calculator)
-        tools_row1.add_widget(self.btn_soc)
+        tools_grid.add_widget(self.btn_soc)
 
-        self.btn_custom = ModernButton(text="加自定义", font_size=dp(11), bg_color=t["btn_tool_bg"], color=t["btn_tool_fg"])
+        self.btn_custom = ModernButton(text="加自定义", font_size=dp(11), radius=14,
+                                       bg_color=t["btn_tool_bg"], color=t["btn_tool_fg"])
         self.btn_custom.bind(on_press=self.show_add_custom_popup)
-        tools_row1.add_widget(self.btn_custom)
-        self.tools_card.add_widget(tools_row1)
+        tools_grid.add_widget(self.btn_custom)
+        self.tools_box_card.add_widget(tools_grid)
+        self.page_tools.add_widget(self.tools_box_card)
 
-        tools_row2 = BoxLayout(orientation='horizontal', spacing=dp(8), size_hint_y=None, height=dp(38))
-        self.btn_theme = ModernButton(text=f"切换风格: {t['name']}", font_size=dp(12),
-                                      size_hint=(0.42, 1), bg_color=t["btn_tool_bg"], color=t["btn_tool_fg"])
-        self.btn_theme.bind(on_press=self.cycle_theme)
-        tools_row2.add_widget(self.btn_theme)
+        # 卡片 3: 界面主题风格直选
+        self.theme_picker_card = SoftCard(bg_color=THEMES[self.current_theme_key]["bg_card"], radius=14, padding=dp(12), spacing=dp(8))
+        self.lbl_title_themes = Label(
+            text="【界面风格随心换】",
+            font_size=dp(13),
+            bold=True,
+            color=THEMES[self.current_theme_key]["accent"],
+            size_hint_y=None,
+            height=dp(24),
+            halign='left'
+        )
+        self.lbl_title_themes.bind(size=self.lbl_title_themes.setter('text_size'))
+        self.theme_picker_card.add_widget(self.lbl_title_themes)
 
-        self.btn_report = ModernButton(text="查看财务规划报告", font_size=dp(12), bold=True,
-                                       size_hint=(0.58, 1), bg_color=t["btn_report_bg"], color=t["btn_report_fg"])
-        self.btn_report.bind(on_press=self.show_report_popup)
-        tools_row2.add_widget(self.btn_report)
-        self.tools_card.add_widget(tools_row2)
+        theme_row = BoxLayout(orientation='horizontal', spacing=dp(6), size_hint_y=None, height=dp(36))
+        self.btn_theme_light = ModernButton(text="晴空白", font_size=dp(11), radius=14, size_hint=(1, 1))
+        self.btn_theme_light.bind(on_press=lambda *a: self.select_theme("light"))
+        theme_row.add_widget(self.btn_theme_light)
 
-        self.content.add_widget(self.tools_card)
+        self.btn_theme_pink = ModernButton(text="樱粉浪漫", font_size=dp(11), radius=14, size_hint=(1, 1))
+        self.btn_theme_pink.bind(on_press=lambda *a: self.select_theme("pink"))
+        theme_row.add_widget(self.btn_theme_pink)
 
-        scroll.add_widget(self.content)
-        self.root_layout.add_widget(scroll)
+        self.btn_theme_warm = ModernButton(text="护眼暖阳", font_size=dp(11), radius=14, size_hint=(1, 1))
+        self.btn_theme_warm.bind(on_press=lambda *a: self.select_theme("warm"))
+        theme_row.add_widget(self.btn_theme_warm)
+
+        self.btn_theme_dark = ModernButton(text="曜石极夜", font_size=dp(11), radius=14, size_hint=(1, 1))
+        self.btn_theme_dark.bind(on_press=lambda *a: self.select_theme("dark"))
+        theme_row.add_widget(self.btn_theme_dark)
+
+        self.theme_picker_card.add_widget(theme_row)
+        self.page_tools.add_widget(self.theme_picker_card)
 
         # 默认社保参数
         self.social_mode = "单位代缴"
@@ -923,9 +1187,95 @@ class FinancePlannerApp(App):
 
         # 从 JSON 文件中自动无缝载入上一次的所有内容
         self.load_from_saved_profile()
+        self.switch_tab(0)
         self.is_initializing = False
 
         return self.root_layout
+
+    def switch_tab(self, tab_idx):
+        self.active_tab_idx = tab_idx
+        self.scroll_content.clear_widgets()
+        if tab_idx == 0:
+            self.scroll_content.add_widget(self.page_overview)
+        elif tab_idx == 1:
+            self.scroll_content.add_widget(self.page_details)
+        elif tab_idx == 2:
+            if hasattr(self, "lbl_embedded_report"):
+                self.lbl_embedded_report.text = self.generate_report_text()
+            self.scroll_content.add_widget(self.page_tools)
+        self.scroll.scroll_y = 1.0
+        self._update_tab_buttons()
+
+    def _update_tab_buttons(self):
+        t = THEMES[self.current_theme_key]
+        theme_key = self.current_theme_key
+        if theme_key == "warm":
+            inactive_bg = (0.92, 0.88, 0.79, 1.0)
+            inactive_fg = (0.48, 0.39, 0.28, 1.0)
+        elif theme_key == "dark":
+            inactive_bg = (0.18, 0.24, 0.35, 1.0)
+            inactive_fg = (0.60, 0.68, 0.78, 1.0)
+        elif theme_key == "pink":
+            inactive_bg = (1.0, 0.94, 0.96, 1.0)
+            inactive_fg = (0.65, 0.44, 0.52, 1.0)
+        else:
+            inactive_bg = (0.92, 0.95, 1.0, 1.0)
+            inactive_fg = (0.42, 0.50, 0.62, 1.0)
+
+        tabs = [
+            (self.btn_tab_overview, 0),
+            (self.btn_tab_details, 1),
+            (self.btn_tab_tools, 2),
+        ]
+        for btn, idx in tabs:
+            if self.active_tab_idx == idx:
+                btn.set_style(t["accent"], (1, 1, 1, 1))
+                btn.bold = True
+            else:
+                btn.set_style(inactive_bg, inactive_fg)
+                btn.bold = False
+
+    def _update_theme_buttons(self):
+        if not hasattr(self, "btn_theme_light"):
+            return
+        t = THEMES[self.current_theme_key]
+        theme_key = self.current_theme_key
+        if theme_key == "warm":
+            inactive_bg = (0.92, 0.88, 0.79, 1.0)
+            inactive_fg = (0.48, 0.39, 0.28, 1.0)
+        elif theme_key == "dark":
+            inactive_bg = (0.18, 0.24, 0.35, 1.0)
+            inactive_fg = (0.60, 0.68, 0.78, 1.0)
+        elif theme_key == "pink":
+            inactive_bg = (1.0, 0.94, 0.96, 1.0)
+            inactive_fg = (0.65, 0.44, 0.52, 1.0)
+        else:
+            inactive_bg = (0.92, 0.95, 1.0, 1.0)
+            inactive_fg = (0.42, 0.50, 0.62, 1.0)
+
+        theme_btns = [
+            (self.btn_theme_light, "light"),
+            (self.btn_theme_pink, "pink"),
+            (self.btn_theme_warm, "warm"),
+            (self.btn_theme_dark, "dark"),
+        ]
+        for btn, k in theme_btns:
+            if self.current_theme_key == k:
+                btn.set_style(t["accent"], (1, 1, 1, 1))
+                btn.bold = True
+            else:
+                btn.set_style(inactive_bg, inactive_fg)
+                btn.bold = False
+
+    def select_theme(self, theme_key):
+        self.apply_theme_by_key(theme_key)
+        self.auto_save_profile()
+
+    def copy_embedded_report(self, *a):
+        rpt = self.generate_report_text()
+        Clipboard.copy(rpt)
+        if hasattr(self, "btn_copy_report"):
+            self.btn_copy_report.text = "已复制！"
 
     def _update_root_bg(self):
         self.root_bg_rect.pos = self.root_layout.pos
@@ -934,6 +1284,11 @@ class FinancePlannerApp(App):
     def _update_header_bg(self):
         self.header_bg_rect.pos = self.header.pos
         self.header_bg_rect.size = self.header.size
+
+    def _update_tab_bar_bg(self):
+        if hasattr(self, "tab_bar_bg_rect") and hasattr(self, "tab_bar"):
+            self.tab_bar_bg_rect.pos = self.tab_bar.pos
+            self.tab_bar_bg_rect.size = self.tab_bar.size
 
     # ==================== JSON 自动保存与自动载入引擎 ====================
     def load_from_saved_profile(self):
@@ -1028,32 +1383,52 @@ class FinancePlannerApp(App):
         self.current_theme_key = theme_key
         t = THEMES[theme_key]
 
-        # 1. 根底色与顶栏
+        # 1. 根底色与顶栏、底栏
         self.root_bg_color.rgba = t["bg_root"]
         self.header_bg_color.rgba = t["bg_header"]
         self.lbl_app_title.color = t["text_header"]
+        if hasattr(self, "tab_bar_bg_color"):
+            self.tab_bar_bg_color.rgba = t["bg_card"]
 
-        # 2. 卡片软底
-        self.display_card.set_theme_bg(t["bg_display"])
-        self.ctrl_card.set_theme_bg(t["bg_card"])
-        self.items_card.set_theme_bg(t["bg_card"])
-        self.chart_card.set_theme_bg(t["bg_card"])
-        if hasattr(self, "tools_card"):
-            self.tools_card.set_theme_bg(t["bg_card"])
+        # 2. 底部三栏导航按钮
+        self._update_tab_buttons()
 
-        # 3. 输入框与文字
-        self.lbl_in_title.color = t["text_primary"]
-        self.lbl_target_title.color = t["text_secondary"]
-        self.in_income.foreground_color = t["text_primary"]
-        self.in_income.background_color = t["bg_input"]
-        self.in_target_surplus.foreground_color = t["text_primary"]
-        self.in_target_surplus.background_color = t["bg_input"]
+        # 3. 页面卡片软底
+        if hasattr(self, "display_card"):
+            self.display_card.set_theme_bg(t["bg_display"])
+        if hasattr(self, "ctrl_card"):
+            self.ctrl_card.set_theme_bg(t["bg_card"])
+        if hasattr(self, "chart_card"):
+            self.chart_card.set_theme_bg(t["bg_card"])
+        if hasattr(self, "details_summary_card"):
+            self.details_summary_card.set_theme_bg(t["bg_card"])
+        if hasattr(self, "card_essential"):
+            self.card_essential.set_theme_bg(t["bg_card"])
+        if hasattr(self, "card_lifestyle"):
+            self.card_lifestyle.set_theme_bg(t["bg_card"])
+        if hasattr(self, "card_growth"):
+            self.card_growth.set_theme_bg(t["bg_card"])
+        if hasattr(self, "report_card"):
+            self.report_card.set_theme_bg(t["bg_card"])
+        if hasattr(self, "tools_box_card"):
+            self.tools_box_card.set_theme_bg(t["bg_card"])
+        if hasattr(self, "theme_picker_card"):
+            self.theme_picker_card.set_theme_bg(t["bg_card"])
+
+        # 4. Tab 1 输入框与文字
+        if hasattr(self, "lbl_in_title"):
+            self.lbl_in_title.color = t["text_primary"]
+        if hasattr(self, "lbl_target_title"):
+            self.lbl_target_title.color = t["text_secondary"]
+        if hasattr(self, "in_income"):
+            self.in_income.set_theme_input(t["bg_input"], t["text_primary"])
+        if hasattr(self, "in_target_surplus"):
+            self.in_target_surplus.set_theme_input(t["bg_input"], t["text_primary"])
 
         if hasattr(self, "lbl_debt_title"):
             self.lbl_debt_title.color = t["text_secondary"]
         if hasattr(self, "in_debt"):
-            self.in_debt.foreground_color = t["text_primary"]
-            self.in_debt.background_color = t["bg_input"]
+            self.in_debt.set_theme_input(t["bg_input"], t["text_primary"])
 
         # 建议储蓄元素样式
         if hasattr(self, "lbl_sug_title"):
@@ -1069,7 +1444,7 @@ class FinancePlannerApp(App):
         if hasattr(self, "btn_ratio_30"):
             self.btn_ratio_30.set_style(t["bg_input"], t["text_primary"])
 
-        # 4. 男女胶囊按钮高亮适配 (全主题彻底同步)
+        # 男女胶囊按钮高亮适配 (全主题彻底同步)
         if theme_key == "warm":
             inactive_bg = (0.92, 0.88, 0.79, 1.0)
             inactive_fg = (0.48, 0.39, 0.28, 1.0)
@@ -1083,40 +1458,65 @@ class FinancePlannerApp(App):
             inactive_bg = (0.92, 0.95, 1.0, 1.0)
             inactive_fg = (0.42, 0.50, 0.62, 1.0)
 
-        if self.current_gender == "male":
-            self.btn_male.set_style(t["accent_male"], (1, 1, 1, 1))
-            self.btn_male.bold = True
-            self.btn_female.set_style(inactive_bg, inactive_fg)
-            self.btn_female.bold = False
-        else:
-            self.btn_female.set_style(t["accent_female"], (1, 1, 1, 1))
-            self.btn_female.bold = True
-            self.btn_male.set_style(inactive_bg, inactive_fg)
-            self.btn_male.bold = False
+        if hasattr(self, "btn_male") and hasattr(self, "btn_female"):
+            if self.current_gender == "male":
+                self.btn_male.set_style(t["accent_male"], (1, 1, 1, 1))
+                self.btn_male.bold = True
+                self.btn_female.set_style(inactive_bg, inactive_fg)
+                self.btn_female.bold = False
+            else:
+                self.btn_female.set_style(t["accent_female"], (1, 1, 1, 1))
+                self.btn_female.bold = True
+                self.btn_male.set_style(inactive_bg, inactive_fg)
+                self.btn_male.bold = False
 
-        # 5. 身份按钮与智能精算按钮
-        self.btn_identity.set_style(t["bg_input"], t["text_primary"])
-        self.btn_smart_plan.set_style(t["btn_plan_bg"], t["btn_plan_fg"])
+        if hasattr(self, "btn_identity"):
+            self.btn_identity.set_style(t["bg_input"], t["text_primary"])
+        if hasattr(self, "btn_smart_plan"):
+            self.btn_smart_plan.set_style(t["btn_plan_bg"], t["btn_plan_fg"])
+        if hasattr(self, "btn_jump_details"):
+            self.btn_jump_details.set_style(t["btn_plan_bg"], t["btn_plan_fg"])
 
-        # 6. 列表标题与全锁/全解微胶囊
-        self.lbl_list_title.color = t["accent"]
-        self.btn_lock.set_style(inactive_bg, t["accent"])
-        self.btn_unlock.set_style(inactive_bg, t["accent"])
+        # 5. Tab 2 细目控制与分类标题
+        if hasattr(self, "lbl_details_summary"):
+            self.lbl_details_summary.color = t["text_primary"]
+        if hasattr(self, "btn_lock"):
+            self.btn_lock.set_style(inactive_bg, t["accent"])
+        if hasattr(self, "btn_unlock"):
+            self.btn_unlock.set_style(inactive_bg, t["accent"])
+        if hasattr(self, "lbl_title_essential"):
+            self.lbl_title_essential.color = t["accent"]
+        if hasattr(self, "lbl_title_lifestyle"):
+            self.lbl_title_lifestyle.color = t["accent_female"] if self.current_gender == "female" else t["accent_male"]
+        if hasattr(self, "lbl_title_growth"):
+            self.lbl_title_growth.color = t["accent"]
+        if hasattr(self, "btn_jump_tools"):
+            self.btn_jump_tools.set_style(t["btn_plan_bg"], t["btn_plan_fg"])
 
-        # 7. 底部工具栏与主题切换
-        self.btn_meal.set_style(t["btn_tool_bg"], t["btn_tool_fg"])
-        self.btn_sem.set_style(t["btn_tool_bg"], t["btn_tool_fg"])
-        self.btn_soc.set_style(t["btn_tool_bg"], t["btn_tool_fg"])
-        self.btn_custom.set_style(t["btn_tool_bg"], t["btn_tool_fg"])
-        if hasattr(self, "btn_theme"):
-            self.btn_theme.text = f"切换风格: {t['name']}"
-            self.btn_theme.set_style(t["btn_tool_bg"], t["btn_tool_fg"])
-        self.btn_report.set_style(t["btn_report_bg"], t["btn_report_fg"])
+        # 6. Tab 3 工具栏与主题切换
+        if hasattr(self, "lbl_title_report"):
+            self.lbl_title_report.color = t["accent"]
+        if hasattr(self, "btn_copy_report"):
+            self.btn_copy_report.set_style(t["btn_report_bg"], t["btn_report_fg"])
+        if hasattr(self, "lbl_embedded_report"):
+            self.lbl_embedded_report.color = t["text_primary"]
+        if hasattr(self, "lbl_title_tools"):
+            self.lbl_title_tools.color = t["accent"]
+        if hasattr(self, "btn_meal"):
+            self.btn_meal.set_style(t["btn_tool_bg"], t["btn_tool_fg"])
+        if hasattr(self, "btn_sem"):
+            self.btn_sem.set_style(t["btn_tool_bg"], t["btn_tool_fg"])
+        if hasattr(self, "btn_soc"):
+            self.btn_soc.set_style(t["btn_tool_bg"], t["btn_tool_fg"])
+        if hasattr(self, "btn_custom"):
+            self.btn_custom.set_style(t["btn_tool_bg"], t["btn_tool_fg"])
+        if hasattr(self, "lbl_title_themes"):
+            self.lbl_title_themes.color = t["accent"]
+        self._update_theme_buttons()
 
-        # 8. 刷新各条目样式
+        # 7. 刷新各细目行样式
         for it in self.expense_widgets:
-            it["txt"].foreground_color = t["text_primary"]
-            it["txt"].background_color = t["bg_input"]
+            it["txt"].set_theme_input(t["bg_input"], t["text_primary"])
             it["lbl"].color = t["text_primary"]
             it["pct"].color = t["accent"]
             it["lock"].refresh_state(t)
@@ -1146,7 +1546,7 @@ class FinancePlannerApp(App):
             bg = t["accent"] if is_active else t["bg_input"]
             fg = (1, 1, 1, 1) if is_active else t["text_primary"]
             btn = ModernButton(text=f"{'● ' if is_active else '○ '}{id_name}",
-                               font_size=dp(12), bold=is_active,
+                               font_size=dp(12), bold=is_active, radius=14,
                                size_hint_y=None, height=dp(38),
                                bg_color=bg, color=fg)
             def make_picker(name):
@@ -1161,7 +1561,7 @@ class FinancePlannerApp(App):
             btn.bind(on_press=make_picker(id_name))
             content.add_widget(btn)
 
-        btn_cancel = ModernButton(text="取消", font_size=dp(12), size_hint_y=None, height=dp(34),
+        btn_cancel = ModernButton(text="取消", font_size=dp(12), radius=14, size_hint_y=None, height=dp(34),
                                   bg_color=t.get("btn_secondary_bg", (0.85, 0.88, 0.92, 1)),
                                   color=t.get("btn_secondary_fg", t["text_primary"]))
         btn_cancel.bind(on_press=popup.dismiss)
@@ -1169,9 +1569,13 @@ class FinancePlannerApp(App):
 
         popup.open()
 
-    # ==================== 构建全维支出行 (女生版与男生版各自定制独立画像) ====================
+    # ==================== 构建全维支出行 (分批分三栏分类构建) ====================
     def _build_expense_rows(self):
-        self.expense_container.clear_widgets()
+        if not hasattr(self, "box_essential"):
+            return
+        self.box_essential.clear_widgets()
+        self.box_lifestyle.clear_widgets()
+        self.box_growth.clear_widgets()
         self.expense_widgets = []
         t = THEMES[self.current_theme_key]
 
@@ -1179,36 +1583,36 @@ class FinancePlannerApp(App):
         ess_list = FEMALE_ESSENTIAL if is_female else MALE_ESSENTIAL
         life_list = FEMALE_LIFESTYLE if is_female else MALE_LIFESTYLE
 
-        tag_ess_text = "【基础生存刚需】 (三餐、房租、通勤、话费、医疗、生理个护与理发美发)" if is_female else "【基础生存刚需】 (三餐、房租、通勤、话费、医疗与理发修容)"
-        tag_ess = Label(text=tag_ess_text, font_size=dp(11), bold=True,
-                        color=t["text_secondary"], size_hint_y=None, height=dp(20), halign='left')
-        tag_ess.bind(size=tag_ess.setter('text_size'))
-        self.expense_container.add_widget(tag_ess)
+        if is_female:
+            self.lbl_title_essential.text = "【第一栏·基础生存刚需】 (三餐、房租、通勤、话费、医疗、生理个护与美发)"
+            self.lbl_title_lifestyle.text = "【第二栏·女生品质生活】 (护肤美妆、穿搭鞋包、网购百货、茶饮、社交与旅行)"
+        else:
+            self.lbl_title_essential.text = "【第一栏·基础生存刚需】 (三餐、房租、通勤、话费、医疗与理发修容)"
+            self.lbl_title_lifestyle.text = "【第二栏·男生质感生活】 (数码科技、游戏电竞、运动健身、潮流鞋服与社交)"
+        self.lbl_title_growth.text = "【第三栏·机动与补充项】 (自我成长提升、机动备用金与自定义项)"
 
+        # 第一栏：生存刚需
         for key, name, lo, hi, tip in ess_list:
-            self._add_single_row(key, name, "0", lo, hi, tip)
+            self._add_single_row(self.box_essential, key, name, "0", lo, hi, tip)
 
-        tag_life_text = "【女生专属·质感生活画像】 (护肤美妆、穿搭鞋包、网购百货、茶饮甜品、聚会与旅行)" if is_female else "【男生专属·兴趣爱好画像】 (数码科技、游戏电竞、运动健身、聚会社交、鞋服与户外)"
-        tag_flex = Label(text=tag_life_text, font_size=dp(11), bold=True,
-                         color=t["accent_female"] if is_female else t["accent_male"],
-                         size_hint_y=None, height=dp(24), halign='left')
-        tag_flex.bind(size=tag_flex.setter('text_size'))
-        self.expense_container.add_widget(tag_flex)
-
+        # 第二栏：品质生活 (排除 study 和 other，这二者归入第三栏成长与机动)
         for key, name, lo, hi, tip in life_list:
-            self._add_single_row(key, name, "0", lo, hi, tip)
+            if key in ("study", "other"):
+                continue
+            self._add_single_row(self.box_lifestyle, key, name, "0", lo, hi, tip)
+
+        # 第三栏：机动与补充项 (study + other + 自定义项目)
+        for key, name, lo, hi, tip in life_list:
+            if key in ("study", "other"):
+                self._add_single_row(self.box_growth, key, name, "0", lo, hi, tip)
 
         if self.custom_items:
-            tag_cust = Label(text="【自定义补充项】", font_size=dp(11), bold=True,
-                             color=t["text_secondary"], size_hint_y=None, height=dp(20), halign='left')
-            tag_cust.bind(size=tag_cust.setter('text_size'))
-            self.expense_container.add_widget(tag_cust)
             for key, name, default_amt, lo, hi, tip in self.custom_items:
-                self._add_single_row(key, name, default_amt, lo, hi, tip)
+                self._add_single_row(self.box_growth, key, name, default_amt, lo, hi, tip)
 
-    def _add_single_row(self, key, label_name, default_amt, lo, hi, tip):
+    def _add_single_row(self, parent_box, key, label_name, default_amt, lo, hi, tip):
         t = THEMES[self.current_theme_key]
-        row = BoxLayout(orientation='horizontal', spacing=dp(6), size_hint_y=None, height=dp(32))
+        row = BoxLayout(orientation='horizontal', spacing=dp(6), size_hint_y=None, height=dp(34))
 
         btn_lock_badge = LockBadgeButton()
         btn_lock_badge.refresh_state(t)
@@ -1220,16 +1624,17 @@ class FinancePlannerApp(App):
         row.add_widget(lbl_name)
 
         lbl_pct = Label(text="0%", font_size=dp(11), color=t["accent"],
-                        size_hint_x=None, width=dp(40), halign='right')
+                        size_hint_x=None, width=dp(40), halign='right', valign='middle')
+        lbl_pct.bind(size=lbl_pct.setter('text_size'))
         row.add_widget(lbl_pct)
 
-        txt_amt = TextInput(text=default_amt, multiline=False, input_filter='float',
-                            font_size=dp(12), size_hint=(1, 1), padding=[dp(8), dp(6)],
-                            foreground_color=t["text_primary"], background_color=t["bg_input"])
+        txt_amt = RoundedInput(text=default_amt, multiline=False, input_filter='float',
+                               font_size=dp(12), size_hint=(1, 1), padding=[dp(8), dp(6)],
+                               bg_color=t["bg_input"], foreground_color=t["text_primary"])
         txt_amt.bind(text=self.on_input_change)
         row.add_widget(txt_amt)
 
-        self.expense_container.add_widget(row)
+        parent_box.add_widget(row)
         self.expense_widgets.append({
             "key": key, "name": label_name, "lock": btn_lock_badge, "txt": txt_amt,
             "lbl": lbl_name, "pct": lbl_pct, "lo": lo, "hi": hi, "tip": tip
@@ -1418,6 +1823,12 @@ class FinancePlannerApp(App):
         if hasattr(self, "cashflow_chart"):
             self.cashflow_chart.update_data(takehome, d["essential"], d["flexible"], surplus, t)
 
+        if hasattr(self, "lbl_details_summary"):
+            self.lbl_details_summary.text = f"总支出: ￥{fmt(total_exp)}  |  到手: ￥{fmt(takehome)}  |  结余: ￥{fmt(surplus)}"
+
+        if hasattr(self, "lbl_embedded_report") and getattr(self, "active_tab_idx", 0) == 2:
+            self.lbl_embedded_report.text = self.generate_report_text()
+
     def apply_suggested_target(self, *a):
         d = self.compute()
         disposable = max(0.0, d["takehome"] - d["debt"])
@@ -1549,9 +1960,9 @@ class FinancePlannerApp(App):
             row = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(32), spacing=dp(6))
             l = Label(text=title, font_size=dp(11), color=t["text_primary"], size_hint_x=0.62, halign='left')
             l.bind(size=l.setter('text_size'))
-            ti = TextInput(text=default_val, multiline=False, input_filter='float', font_size=dp(11),
-                           size_hint_x=0.38, padding=[dp(6), dp(6)],
-                           foreground_color=t["text_primary"], background_color=t["bg_input"])
+            ti = RoundedInput(text=default_val, multiline=False, input_filter='float', font_size=dp(11),
+                              size_hint_x=0.38, padding=[dp(6), dp(6)],
+                              bg_color=t["bg_input"], foreground_color=t["text_primary"])
             row.add_widget(l)
             row.add_widget(ti)
             form_box.add_widget(row)
@@ -1645,7 +2056,7 @@ class FinancePlannerApp(App):
             ("学生食堂",     lambda *a: set_preset_vals(5, 30, 12, 12, 2, 80, 40)),
         ]
         for p_title, p_func in p_defs:
-            pb = ModernButton(text=p_title, font_size=dp(9), size_hint=(1, 1),
+            pb = ModernButton(text=p_title, font_size=dp(9), size_hint=(1, 1), radius=12,
                               bg_color=t["bg_input"], color=t["text_primary"])
             pb.bind(on_press=p_func)
             pre_box.add_widget(pb)
@@ -1653,9 +2064,9 @@ class FinancePlannerApp(App):
         calc_meal()
 
         btn_bar = BoxLayout(size_hint_y=None, height=dp(36), spacing=dp(10))
-        btn_apply = ModernButton(text="同步填入餐饮开销", font_size=dp(12), bold=True,
+        btn_apply = ModernButton(text="同步填入餐饮开销", font_size=dp(12), bold=True, radius=14,
                                  bg_color=t["btn_plan_bg"], color=t["btn_plan_fg"])
-        btn_close = ModernButton(text="关闭", font_size=dp(12),
+        btn_close = ModernButton(text="关闭", font_size=dp(12), radius=14,
                                  bg_color=t.get("btn_secondary_bg", (0.85, 0.88, 0.92, 1)),
                                  color=t.get("btn_secondary_fg", t["text_primary"]))
 
@@ -1699,8 +2110,8 @@ class FinancePlannerApp(App):
             row = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(32), spacing=dp(6))
             l = Label(text=name, font_size=dp(12), color=t["text_primary"], size_hint_x=0.6, halign='left')
             l.bind(size=l.setter('text_size'))
-            ti = TextInput(text=d_val, multiline=False, input_filter='float', font_size=dp(12),
-                           size_hint_x=0.4, foreground_color=t["text_primary"], background_color=t["bg_input"])
+            ti = RoundedInput(text=d_val, multiline=False, input_filter='float', font_size=dp(12),
+                              size_hint_x=0.4, bg_color=t["bg_input"], foreground_color=t["text_primary"])
             row.add_widget(l)
             row.add_widget(ti)
             content.add_widget(row)
@@ -1726,9 +2137,9 @@ class FinancePlannerApp(App):
         calc_sem()
 
         btn_bar = BoxLayout(size_hint_y=None, height=dp(36), spacing=dp(10))
-        btn_apply = ModernButton(text="同步填入", font_size=dp(12), bold=True,
+        btn_apply = ModernButton(text="同步填入", font_size=dp(12), bold=True, radius=14,
                                  bg_color=t["btn_plan_bg"], color=t["btn_plan_fg"])
-        btn_close = ModernButton(text="关闭", font_size=dp(12),
+        btn_close = ModernButton(text="关闭", font_size=dp(12), radius=14,
                                  bg_color=t.get("btn_secondary_bg", (0.85, 0.88, 0.92, 1)),
                                  color=t.get("btn_secondary_fg", t["text_primary"]))
 
@@ -1780,7 +2191,7 @@ class FinancePlannerApp(App):
                     btn_obj.bold = False
 
         for m_name in modes:
-            b = ModernButton(text=m_name, font_size=dp(11), size_hint=(1, 1), radius=8)
+            b = ModernButton(text=m_name, font_size=dp(11), size_hint=(1, 1), radius=14)
             def make_handler(m):
                 def on_click(*e):
                     selected_mode["val"] = m
@@ -1796,8 +2207,8 @@ class FinancePlannerApp(App):
         row_base = BoxLayout(size_hint_y=None, height=dp(34), spacing=dp(6))
         lbl_b = Label(text="社保基数:", font_size=dp(12), color=t["text_primary"], size_hint_x=0.4, halign='left')
         lbl_b.bind(size=lbl_b.setter('text_size'))
-        ti_base = TextInput(text=str(int(self.social_base)), multiline=False, input_filter='float',
-                            font_size=dp(12), size_hint_x=0.6, foreground_color=t["text_primary"], background_color=t["bg_input"])
+        ti_base = RoundedInput(text=str(int(self.social_base)), multiline=False, input_filter='float',
+                               font_size=dp(12), size_hint_x=0.6, bg_color=t["bg_input"], foreground_color=t["text_primary"])
         row_base.add_widget(lbl_b)
         row_base.add_widget(ti_base)
         content.add_widget(row_base)
@@ -1805,16 +2216,16 @@ class FinancePlannerApp(App):
         row_tax = BoxLayout(size_hint_y=None, height=dp(34), spacing=dp(6))
         lbl_t = Label(text="附加扣除:", font_size=dp(12), color=t["text_primary"], size_hint_x=0.4, halign='left')
         lbl_t.bind(size=lbl_t.setter('text_size'))
-        ti_tax = TextInput(text=str(int(self.tax_deduction)), multiline=False, input_filter='float',
-                           font_size=dp(12), size_hint_x=0.6, foreground_color=t["text_primary"], background_color=t["bg_input"])
+        ti_tax = RoundedInput(text=str(int(self.tax_deduction)), multiline=False, input_filter='float',
+                              font_size=dp(12), size_hint_x=0.6, bg_color=t["bg_input"], foreground_color=t["text_primary"])
         row_tax.add_widget(lbl_t)
         row_tax.add_widget(ti_tax)
         content.add_widget(row_tax)
 
         btn_bar = BoxLayout(size_hint_y=None, height=dp(36), spacing=dp(10))
-        btn_apply = ModernButton(text="保存更新", font_size=dp(12), bold=True,
+        btn_apply = ModernButton(text="保存更新", font_size=dp(12), bold=True, radius=14,
                                  bg_color=t["btn_plan_bg"], color=t["btn_plan_fg"])
-        btn_close = ModernButton(text="关闭", font_size=dp(12),
+        btn_close = ModernButton(text="关闭", font_size=dp(12), radius=14,
                                  bg_color=t.get("btn_secondary_bg", (0.85, 0.88, 0.92, 1)),
                                  color=t.get("btn_secondary_fg", t["text_primary"]))
 
@@ -1848,8 +2259,8 @@ class FinancePlannerApp(App):
         row_name = BoxLayout(size_hint_y=None, height=dp(34), spacing=dp(6))
         lbl_n = Label(text="项目名称:", font_size=dp(12), color=t["text_primary"], size_hint_x=0.35, halign='left')
         lbl_n.bind(size=lbl_n.setter('text_size'))
-        ti_name = TextInput(text="兴趣特长", multiline=False, font_size=dp(12),
-                            size_hint_x=0.65, foreground_color=t["text_primary"], background_color=t["bg_input"])
+        ti_name = RoundedInput(text="兴趣特长", multiline=False, font_size=dp(12),
+                               size_hint_x=0.65, bg_color=t["bg_input"], foreground_color=t["text_primary"])
         row_name.add_widget(lbl_n)
         row_name.add_widget(ti_name)
         content.add_widget(row_name)
@@ -1857,16 +2268,16 @@ class FinancePlannerApp(App):
         row_val = BoxLayout(size_hint_y=None, height=dp(34), spacing=dp(6))
         lbl_v = Label(text="每月预算:", font_size=dp(12), color=t["text_primary"], size_hint_x=0.35, halign='left')
         lbl_v.bind(size=lbl_v.setter('text_size'))
-        ti_val = TextInput(text="200", multiline=False, input_filter='float', font_size=dp(12),
-                           size_hint_x=0.65, foreground_color=t["text_primary"], background_color=t["bg_input"])
+        ti_val = RoundedInput(text="200", multiline=False, input_filter='float', font_size=dp(12),
+                              size_hint_x=0.65, bg_color=t["bg_input"], foreground_color=t["text_primary"])
         row_val.add_widget(lbl_v)
         row_val.add_widget(ti_val)
         content.add_widget(row_val)
 
         btn_bar = BoxLayout(size_hint_y=None, height=dp(36), spacing=dp(10))
-        btn_add = ModernButton(text="确认添加", font_size=dp(12), bold=True,
+        btn_add = ModernButton(text="确认添加", font_size=dp(12), bold=True, radius=14,
                                bg_color=t["btn_plan_bg"], color=t["btn_plan_fg"])
-        btn_close = ModernButton(text="取消", font_size=dp(12),
+        btn_close = ModernButton(text="取消", font_size=dp(12), radius=14,
                                  bg_color=t.get("btn_secondary_bg", (0.85, 0.88, 0.92, 1)),
                                  color=t.get("btn_secondary_fg", t["text_primary"]))
 
