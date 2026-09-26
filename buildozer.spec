@@ -50,6 +50,7 @@ android.skip_update = False
 android.accept_sdk_license = True
 
 # (str) The Android arch to build for, choices: armeabi-v7a, arm64-v8a, x86, x86_64
+# 现代手机（Android 8~15+）全为 64 位，仅编译 arm64-v8a，速度提升一倍且规避 32 位老旧 C 库编译错误
 android.archs = arm64-v8a
 
 # (bool) enables Android auto backup feature (Android API >=23)
