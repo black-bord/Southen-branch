@@ -1,18 +1,25 @@
 # -*- coding: utf-8 -*-
 """
-个人智能财务与安全规划系统 v9.8 Pro · 移动旗舰优化版
-优化亮点：
-1. ☀️ 晴空白 / 📖 护眼暖 / 🌙 曜石黑 三重护眼主题无缝即时切换，所有弹窗与文本高对比度自适应。
-2. 彻底修复柱状图不动的问题（固定柱状结构 + 动态尺寸重算，100% 响应数值更新）。
-3. 彻底修复图表数字与文字不显示的 Bug（环形图中心大字 + 右侧明细清单，柱状图顶端精准金额与百分比，底部居中标签）。
-4. 深度优化报告生成模块：移除所有冗余横线杂音，优化排版间距与大字号（dp(13)），无论深色浅色均清晰易读。
-5. 现代化流行移动 UI：圆角微阴影卡片、胶囊渐变按钮、细腻触控反馈。
-6. 全功能全要素：微信账单智能分类、餐饮精算、学期分摊、五险一金精算、23类支出管理与全维安全规划。
+个人智能财务精算大屏 v14.0 Pro · 全维场景化餐饮规划与深度理财诊断简报版
+核心特性：
+1. 场景化餐饮与聚餐智能精算器：
+   - 完美适配现实生活：支持不吃早饭（快捷一键设为0）、工作日吃早餐、全月早餐设定。
+   - 细化工作餐、日常晚餐、外出社交大餐（每月聚餐次数 × 人均金额）、下午茶奶茶咖啡与夜宵。
+   - 提供 4 大高频场景一键预设：【不吃早餐/常规打工】【自律下厨节俭】【美食探店聚餐】【大学生食堂】。
+2. 深度财务健康诊断简报：
+   - S/A/B/C 四级财务健康综合评级与现金流抗风险评估。
+   - 国际 50/30/20 三阶防线架构分层比对（刚需生存层、生活品质层、成长储备层）。
+   - 针对餐饮占比、网购消费、宠物养护、旅游出行的个性化智能诊断指引。
+   - 修正金额负号显示规范（-￥120 元），层级鲜明。
+3. 全维生活画像全选（网购提权、宠物、旅游、数码、美妆、女生生理期、男生仪容）。
+4. 五险一金三段胶囊按钮【单位代缴】【灵活就业】【无社保】。
+5. 100% 实心 ModalCard 弹窗，杜绝任何透明透底穿透。
+6. 随改随存、自动记忆恢复于 user_data.json。
 """
 
 import os
 import sys
-import re
+import json
 from kivy.app import App
 from kivy.core.window import Window
 from kivy.core.text import LabelBase, DEFAULT_FONT
@@ -20,20 +27,23 @@ from kivy.core.clipboard import Clipboard
 from kivy.utils import platform
 from kivy.metrics import dp
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.gridlayout import GridLayout
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.textinput import TextInput
-from kivy.uix.spinner import Spinner
-from kivy.uix.checkbox import CheckBox
 from kivy.uix.popup import Popup
 from kivy.uix.widget import Widget
-from kivy.graphics import Color, RoundedRectangle, Rectangle, Ellipse, Line
+from kivy.graphics import Color, RoundedRectangle
+
+# 导入用户数据持久化模块
+try:
+    from . import storage
+except Exception:
+    import storage
 
 # 模拟手机竖屏分辨率（电脑预览时）
 if platform not in ("android", "ios"):
-    Window.size = (410, 820)
+    Window.size = (410, 840)
 
 # ==================== 全局中文字体注册 ====================
 def setup_global_font():
@@ -44,14 +54,12 @@ def setup_global_font():
         font_file = local_font
     else:
         for p in [
-            "C:/Windows/Fonts/simhei.ttf",
             "C:/Windows/Fonts/msyh.ttc",
             "C:/Windows/Fonts/msyh.ttf",
+            "C:/Windows/Fonts/simhei.ttf",
             "/system/fonts/NotoSansSC-Regular.otf",
             "/system/fonts/NotoSansCJK-Regular.ttc",
             "/system/fonts/DroidSansFallback.ttf",
-            "/system/fonts/SourceHanSansCN-Regular.otf",
-            "/system/fonts/MiSans-Regular.ttf",
         ]:
             if os.path.exists(p):
                 font_file = p
@@ -61,74 +69,146 @@ def setup_global_font():
             LabelBase.register(DEFAULT_FONT, font_file)
             LabelBase.register("AppFont", font_file)
             return font_file
-        except Exception as e:
-            print("Font register error:", e)
+        except Exception:
+            pass
     return "Roboto"
 
 FONT_PATH = setup_global_font()
 
-
-# ==================== 三重主题调色系统 ====================
+# ==================== 多重主题调色系统 ====================
 THEMES = {
     "light": {
-        "name": "☀️ 晴空白",
-        "bg_root": (0.94, 0.97, 1.0, 1.0),        # #f0f7ff 浅冰蓝
-        "bg_card": (1.0, 1.0, 1.0, 1.0),          # #ffffff 纯白
-        "border_card": (0.86, 0.91, 0.97, 1.0),
-        "bg_header": (0.10, 0.29, 0.69, 1.0),      # #1a4baf 深海科技蓝
+        "name": "晴空",
+        "bg_root": (0.95, 0.97, 1.0, 1.0),
+        "bg_card": (1.0, 1.0, 1.0, 1.0),
+        "bg_display": (0.88, 0.93, 1.0, 1.0),
+        "bg_input": (0.94, 0.97, 1.0, 1.0),
+        "bg_header": (0.12, 0.36, 0.86, 1.0),
         "text_header": (1.0, 1.0, 1.0, 1.0),
-        "text_sub": (0.80, 0.90, 1.0, 1.0),
-        "text_primary": (0.09, 0.13, 0.24, 1.0),  # #0f172a
-        "text_secondary": (0.35, 0.42, 0.52, 1.0),# #475569
-        "accent": (0.14, 0.39, 0.92, 1.0),        # #2563eb
-        "accent_green": (0.05, 0.62, 0.45, 1.0),
-        "bg_input": (0.96, 0.98, 1.0, 1.0),
-        "text_input": (0.09, 0.13, 0.24, 1.0),
-        "tier_bg": (0.92, 0.96, 1.0, 1.0),
+        "text_primary": (0.09, 0.14, 0.24, 1.0),
+        "text_input": (0.09, 0.14, 0.24, 1.0),
+        "text_secondary": (0.42, 0.50, 0.62, 1.0),
+        "accent": (0.14, 0.42, 0.95, 1.0),
+        "accent_male": (0.14, 0.42, 0.95, 1.0),
+        "accent_female": (0.92, 0.35, 0.55, 1.0),
+        "accent_surplus": (0.04, 0.66, 0.42, 1.0),
+        "accent_red": (0.92, 0.25, 0.25, 1.0),
+        "track_color": (0.85, 0.90, 0.96, 0.55),
+        "btn_plan_bg": (0.14, 0.42, 0.95, 1.0),
+        "btn_plan_fg": (1.0, 1.0, 1.0, 1.0),
+        "btn_tool_bg": (0.92, 0.95, 1.0, 1.0),
+        "btn_tool_fg": (0.14, 0.42, 0.95, 1.0),
+        "btn_secondary_bg": (0.88, 0.92, 0.98, 1.0),
+        "btn_secondary_fg": (0.09, 0.14, 0.24, 1.0),
+        "btn_report_bg": (0.12, 0.36, 0.86, 1.0),
+        "btn_report_fg": (1.0, 1.0, 1.0, 1.0),
+        "chart_income": (0.12, 0.36, 0.86, 1.0),
+        "chart_need": (0.16, 0.58, 0.82, 1.0),
+        "chart_want": (0.42, 0.38, 0.80, 1.0),
+        "chart_surplus": (0.06, 0.68, 0.45, 1.0),
+    },
+    "pink": {
+        "name": "樱粉",
+        "bg_root": (0.99, 0.95, 0.97, 1.0),
+        "bg_card": (1.0, 1.0, 1.0, 1.0),
+        "bg_display": (1.0, 0.92, 0.95, 1.0),
+        "bg_input": (0.99, 0.95, 0.97, 1.0),
+        "bg_header": (0.95, 0.42, 0.60, 1.0),
+        "text_header": (1.0, 1.0, 1.0, 1.0),
+        "text_primary": (0.35, 0.14, 0.22, 1.0),
+        "text_input": (0.35, 0.14, 0.22, 1.0),
+        "text_secondary": (0.65, 0.44, 0.52, 1.0),
+        "accent": (0.95, 0.40, 0.58, 1.0),
+        "accent_male": (0.35, 0.50, 0.72, 1.0),
+        "accent_female": (0.95, 0.40, 0.58, 1.0),
+        "accent_surplus": (0.90, 0.25, 0.46, 1.0),
+        "accent_red": (0.95, 0.20, 0.30, 1.0),
+        "track_color": (0.96, 0.88, 0.92, 0.50),
+        "btn_plan_bg": (0.95, 0.40, 0.58, 1.0),
+        "btn_plan_fg": (1.0, 1.0, 1.0, 1.0),
+        "btn_tool_bg": (0.99, 0.92, 0.95, 1.0),
+        "btn_tool_fg": (0.92, 0.32, 0.52, 1.0),
+        "btn_secondary_bg": (0.96, 0.88, 0.92, 1.0),
+        "btn_secondary_fg": (0.35, 0.14, 0.22, 1.0),
+        "btn_report_bg": (0.95, 0.40, 0.58, 1.0),
+        "btn_report_fg": (1.0, 1.0, 1.0, 1.0),
+        "chart_income": (0.82, 0.28, 0.48, 1.0),
+        "chart_need": (0.94, 0.46, 0.58, 1.0),
+        "chart_want": (0.96, 0.65, 0.74, 1.0),
+        "chart_surplus": (0.88, 0.30, 0.50, 1.0),
     },
     "warm": {
-        "name": "📖 护眼暖",
-        "bg_root": (0.97, 0.95, 0.89, 1.0),        # #f8f2e4 羊皮纸暖黄
-        "bg_card": (0.99, 0.98, 0.94, 1.0),        # #fdfaf3 柔和暖白
-        "border_card": (0.88, 0.84, 0.74, 1.0),
-        "bg_header": (0.46, 0.30, 0.16, 1.0),      # #78350f 暖木棕
+        "name": "护眼",
+        "bg_root": (0.97, 0.95, 0.89, 1.0),
+        "bg_card": (0.99, 0.98, 0.94, 1.0),
+        "bg_display": (0.93, 0.90, 0.81, 1.0),
+        "bg_input": (0.92, 0.88, 0.79, 1.0),
+        "bg_header": (0.46, 0.30, 0.16, 1.0),
         "text_header": (1.0, 0.98, 0.92, 1.0),
-        "text_sub": (0.93, 0.85, 0.73, 1.0),
-        "text_primary": (0.24, 0.17, 0.10, 1.0),  # #3d2e1e 柔和深棕
-        "text_secondary": (0.48, 0.39, 0.28, 1.0),
-        "accent": (0.68, 0.40, 0.15, 1.0),        # #b45309 琥珀暖金
-        "accent_green": (0.22, 0.54, 0.32, 1.0),
-        "bg_input": (0.94, 0.91, 0.84, 1.0),
+        "text_primary": (0.24, 0.17, 0.10, 1.0),
         "text_input": (0.24, 0.17, 0.10, 1.0),
-        "tier_bg": (0.95, 0.92, 0.84, 1.0),
+        "text_secondary": (0.48, 0.39, 0.28, 1.0),
+        "accent": (0.68, 0.40, 0.15, 1.0),
+        "accent_male": (0.32, 0.46, 0.66, 1.0),
+        "accent_female": (0.78, 0.32, 0.42, 1.0),
+        "accent_surplus": (0.22, 0.56, 0.30, 1.0),
+        "accent_red": (0.85, 0.30, 0.20, 1.0),
+        "track_color": (0.86, 0.82, 0.72, 0.55),
+        "btn_plan_bg": (0.68, 0.40, 0.15, 1.0),
+        "btn_plan_fg": (1.0, 1.0, 1.0, 1.0),
+        "btn_tool_bg": (0.92, 0.88, 0.79, 1.0),
+        "btn_tool_fg": (0.46, 0.30, 0.16, 1.0),
+        "btn_secondary_bg": (0.88, 0.83, 0.73, 1.0),
+        "btn_secondary_fg": (0.24, 0.17, 0.10, 1.0),
+        "btn_report_bg": (0.68, 0.40, 0.15, 1.0),
+        "btn_report_fg": (1.0, 1.0, 1.0, 1.0),
+        "chart_income": (0.46, 0.30, 0.16, 1.0),
+        "chart_need": (0.62, 0.42, 0.22, 1.0),
+        "chart_want": (0.78, 0.56, 0.32, 1.0),
+        "chart_surplus": (0.25, 0.55, 0.32, 1.0),
     },
     "dark": {
-        "name": "🌙 曜石黑",
-        "bg_root": (0.07, 0.09, 0.14, 1.0),        # #0f172a 深空黑
-        "bg_card": (0.12, 0.16, 0.24, 1.0),        # #1e293b 曜石黑
-        "border_card": (0.20, 0.26, 0.36, 1.0),
-        "bg_header": (0.08, 0.11, 0.18, 1.0),      # #080c14
+        "name": "曜石",
+        "bg_root": (0.07, 0.09, 0.14, 1.0),
+        "bg_card": (0.12, 0.16, 0.24, 1.0),
+        "bg_display": (0.16, 0.22, 0.32, 1.0),
+        "bg_input": (0.18, 0.24, 0.35, 1.0),
+        "bg_header": (0.08, 0.11, 0.17, 1.0),
         "text_header": (0.94, 0.96, 1.0, 1.0),
-        "text_sub": (0.62, 0.72, 0.85, 1.0),
-        "text_primary": (0.94, 0.96, 0.98, 1.0),  # #f1f5f9
-        "text_secondary": (0.60, 0.68, 0.78, 1.0),# #94a3b8
-        "accent": (0.24, 0.54, 0.98, 1.0),        # #3b82f6
-        "accent_green": (0.10, 0.75, 0.52, 1.0),
-        "bg_input": (0.18, 0.23, 0.34, 1.0),
-        "text_input": (0.95, 0.97, 1.0, 1.0),
-        "tier_bg": (0.15, 0.20, 0.30, 1.0),
+        "text_primary": (0.94, 0.96, 0.98, 1.0),
+        "text_input": (0.94, 0.96, 0.98, 1.0),
+        "text_secondary": (0.60, 0.68, 0.78, 1.0),
+        "accent": (0.28, 0.58, 0.98, 1.0),
+        "accent_male": (0.30, 0.62, 0.98, 1.0),
+        "accent_female": (0.96, 0.42, 0.62, 1.0),
+        "accent_surplus": (0.10, 0.82, 0.56, 1.0),
+        "accent_red": (0.95, 0.35, 0.35, 1.0),
+        "track_color": (0.22, 0.28, 0.40, 0.40),
+        "btn_plan_bg": (0.28, 0.58, 0.98, 1.0),
+        "btn_plan_fg": (1.0, 1.0, 1.0, 1.0),
+        "btn_tool_bg": (0.18, 0.24, 0.35, 1.0),
+        "btn_tool_fg": (0.85, 0.90, 0.98, 1.0),
+        "btn_secondary_bg": (0.20, 0.26, 0.36, 1.0),
+        "btn_secondary_fg": (0.94, 0.96, 0.98, 1.0),
+        "btn_report_bg": (0.28, 0.58, 0.98, 1.0),
+        "btn_report_fg": (1.0, 1.0, 1.0, 1.0),
+        "chart_income": (0.28, 0.58, 0.98, 1.0),
+        "chart_need": (0.15, 0.72, 0.85, 1.0),
+        "chart_want": (0.65, 0.40, 0.92, 1.0),
+        "chart_surplus": (0.10, 0.82, 0.56, 1.0),
     }
 }
 
-
 # ==================== 现代微交互组件 ====================
 class ModernButton(Button):
-    def __init__(self, bg_color=(0.14, 0.39, 0.92, 1), radius=10, **kwargs):
+    def __init__(self, bg_color=(0.14, 0.42, 0.95, 1), radius=8, **kwargs):
         super().__init__(**kwargs)
         self.background_color = (0, 0, 0, 0)
         self.background_normal = ''
         self.bg_color = list(bg_color)
         self.radius = dp(radius)
+        if FONT_PATH and FONT_PATH != "Roboto":
+            self.font_name = FONT_PATH
         with self.canvas.before:
             self.c_color = Color(*self.bg_color)
             self.rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[self.radius])
@@ -142,6 +222,11 @@ class ModernButton(Button):
         self.bg_color = list(color)
         self.c_color.rgba = self.bg_color
 
+    def set_style(self, bg_color, text_color=None):
+        self.set_bg_color(bg_color)
+        if text_color is not None:
+            self.color = text_color
+
     def on_press(self):
         self.c_color.rgba = [min(1.0, c * 1.15) for c in self.bg_color[:3]] + [self.bg_color[3]]
 
@@ -149,39 +234,114 @@ class ModernButton(Button):
         self.c_color.rgba = self.bg_color
 
 
-class CardLayout(BoxLayout):
-    def __init__(self, bg_color=(1, 1, 1, 1), border_color=(0.88, 0.92, 0.96, 1), radius=12, auto_height=True, **kwargs):
+class LockBadgeButton(ModernButton):
+    def __init__(self, **kwargs):
+        kwargs.setdefault('text', '未锁')
+        kwargs.setdefault('font_size', dp(10))
+        kwargs.setdefault('radius', 11)
+        kwargs.setdefault('size_hint', (None, None))
+        kwargs.setdefault('size', (dp(44), dp(24)))
+        kwargs.setdefault('bg_color', (1.0, 0.92, 0.95, 1))
         super().__init__(**kwargs)
-        self.padding = dp(12)
-        self.spacing = dp(8)
+        self.is_locked = False
+        self.bind(on_press=self.toggle_lock)
+
+    def toggle_lock(self, *a):
+        self.set_locked(not self.is_locked)
+        app = App.get_running_app()
+        if app:
+            app.refresh_preview()
+            app.auto_save_profile()
+
+    def set_locked(self, locked):
+        self.is_locked = bool(locked)
+        self.refresh_state()
+
+    def refresh_state(self, theme_dict=None):
+        app = App.get_running_app()
+        t = theme_dict or (THEMES.get(app.current_theme_key, THEMES["pink"]) if app else THEMES["pink"])
+        t_name = t.get("name", "")
+        if t_name in ("护眼", "暖阳"):
+            if self.is_locked:
+                self.text = "已锁"
+                self.set_style(t["accent"], (1, 1, 1, 1))
+                self.bold = True
+            else:
+                self.text = "未锁"
+                self.set_style((0.92, 0.88, 0.79, 1.0), (0.46, 0.30, 0.16, 1.0))
+                self.bold = False
+        elif t_name == "曜石":
+            if self.is_locked:
+                self.text = "已锁"
+                self.set_style(t["accent"], (1, 1, 1, 1))
+                self.bold = True
+            else:
+                self.text = "未锁"
+                self.set_style((0.18, 0.24, 0.35, 1.0), t["text_secondary"])
+                self.bold = False
+        elif t_name == "樱粉":
+            if self.is_locked:
+                self.text = "已锁"
+                self.set_style(t["accent_female"], (1, 1, 1, 1))
+                self.bold = True
+            else:
+                self.text = "未锁"
+                self.set_style((1.0, 0.92, 0.95, 1.0), (0.92, 0.38, 0.58, 1.0))
+                self.bold = False
+        else: # 晴空 / light
+            if self.is_locked:
+                self.text = "已锁"
+                self.set_style(t["accent"], (1, 1, 1, 1))
+                self.bold = True
+            else:
+                self.text = "未锁"
+                self.set_style((0.90, 0.94, 1.0, 1.0), (0.14, 0.42, 0.95, 1.0))
+                self.bold = False
+
+
+class SoftCard(BoxLayout):
+    def __init__(self, bg_color=(1, 1, 1, 1), radius=12, auto_height=True, padding=dp(10), spacing=dp(6), **kwargs):
+        super().__init__(**kwargs)
+        self.padding = padding
+        self.spacing = spacing
         self.orientation = "vertical"
         self.auto_height = auto_height
         if auto_height:
             self.size_hint_y = None
             self.bind(minimum_height=self.setter('height'))
         self.bg_color = list(bg_color)
-        self.border_color = list(border_color)
         self.radius = dp(radius)
         with self.canvas.before:
-            self.c_border = Color(*self.border_color)
-            self.rect_border = RoundedRectangle(pos=self.pos, size=self.size, radius=[self.radius])
             self.c_bg = Color(*self.bg_color)
-            self.rect_bg = RoundedRectangle(pos=(self.x + dp(1), self.y + dp(1)),
-                                            size=(max(0, self.width - dp(2)), max(0, self.height - dp(2))),
-                                            radius=[max(0, self.radius - dp(1))])
+            self.rect_bg = RoundedRectangle(pos=self.pos, size=self.size, radius=[self.radius])
         self.bind(pos=self._update_rect, size=self._update_rect)
 
     def _update_rect(self, *args):
-        self.rect_border.pos = self.pos
-        self.rect_border.size = self.size
-        self.rect_bg.pos = (self.x + dp(1), self.y + dp(1))
-        self.rect_bg.size = (max(0, self.width - dp(2)), max(0, self.height - dp(2)))
+        self.rect_bg.pos = self.pos
+        self.rect_bg.size = self.size
 
-    def set_theme_colors(self, bg_color, border_color):
+    def set_theme_bg(self, bg_color):
         self.bg_color = list(bg_color)
-        self.border_color = list(border_color)
         self.c_bg.rgba = self.bg_color
-        self.c_border.rgba = self.border_color
+
+
+class ModalCard(BoxLayout):
+    """实心不透明弹窗卡片：彻底根治背景透明、文字重叠穿透 Bug"""
+    def __init__(self, bg_color=(1, 1, 1, 1), radius=16, padding=dp(16), spacing=dp(10), **kwargs):
+        super().__init__(**kwargs)
+        self.orientation = "vertical"
+        self.padding = padding
+        self.spacing = spacing
+        self.bg_color = list(bg_color)
+        self.radius = dp(radius)
+        with self.canvas.before:
+            self.c_bg = Color(*self.bg_color)
+            self.rect_bg = RoundedRectangle(pos=self.pos, size=self.size, radius=[self.radius])
+        self.bind(pos=self._update_geom, size=self._update_geom)
+
+    def _update_geom(self, *a):
+        self.rect_bg.pos = self.pos
+        self.rect_bg.size = self.size
 
 
 class DynamicLabel(Label):
@@ -197,676 +357,902 @@ class DynamicLabel(Label):
         self.bind(texture_size=self._update_height)
 
     def _update_text_size(self, *args):
-        self.text_size = (max(dp(50), self.width - dp(10)), None)
+        self.text_size = (max(dp(50), self.width - dp(6)), None)
 
     def _update_height(self, *args):
-        self.height = max(dp(26), self.texture_size[1] + dp(12))
+        self.height = max(dp(22), self.texture_size[1] + dp(8))
 
-
-# ==================== 核心财务模型与阶梯矩阵 ====================
-TIER_DEFINITIONS = [
-    {
-        "max": 3000,
-        "name": "极简生存阶梯",
-        "tag": "🌱 极简生存阶梯 (≤3000元)",
-        "desc": "生存底线兜底 · 房租1000/餐饮1000绝对优先 · 剔除一切弹性消费 · 积攒小额急用金",
-        "target_savings_rate": 0.12,
-        "security_level": "⚠️ 基础生存防御期（严禁负债/先存3000元防线）",
-        "student_allowed": ["food", "transport", "phone", "study", "other"],
-        "normal_allowed": ["food", "housing", "transport", "phone", "other"],
-    },
-    {
-        "max": 5000,
-        "name": "温饱起步阶梯",
-        "tag": "🌿 温饱起步阶梯 (3000~5000元)",
-        "desc": "基本生活自立 · 严控租房与外卖 · 解锁小额提升与基础社交 · 储蓄率提升至20%",
-        "target_savings_rate": 0.20,
-        "security_level": "🛡️ 活期安全垫构建期（目标存满2个月生活费）",
-        "student_allowed": ["food", "transport", "phone", "study", "fun", "shopping", "health", "drink", "other"],
-        "normal_allowed": ["food", "housing", "transport", "phone", "study", "fun", "shopping", "health", "drink", "other"],
-    },
-    {
-        "max": 8000,
-        "name": "基础自立阶梯",
-        "tag": "🚀 基础自立阶梯 (5000~8000元)",
-        "desc": "走向收支平衡 · 解锁基础人身医疗险 · 建立3~6个月应急池 · 储蓄率提升至28%",
-        "target_savings_rate": 0.28,
-        "security_level": "🛡️ 综合风险防御期（配置百万医疗险+意外险）",
-        "student_allowed": ["food", "transport", "phone", "study", "fun", "shopping", "health", "beauty", "subscription", "drink", "love", "travel", "other"],
-        "normal_allowed": ["food", "housing", "transport", "phone", "study", "fun", "shopping", "health", "beauty", "subscription", "love", "insurance", "drink", "other"],
-    },
-    {
-        "max": 10000,
-        "name": "稳健成长阶梯",
-        "tag": "🏆 稳健成长阶梯 (8000~10000元)",
-        "desc": "迈入万元门槛 · 抑制生活方式通胀 · 锁定生活成本加速储蓄 · 储蓄率提升至32%",
-        "target_savings_rate": 0.32,
-        "security_level": "⚡ 稳健抗风险期（应急池充裕+开启低波理财）",
-        "student_allowed": None,
-        "normal_allowed": ["food", "housing", "transport", "phone", "study", "fun", "shopping", "health", "beauty", "subscription", "love", "insurance", "gift", "fitness", "electronics", "parents", "drink", "other"],
-    },
-    {
-        "max": 20000,
-        "name": "强储蓄积累阶梯",
-        "tag": "⚡ 强储蓄积累阶梯 (10000~20000元)",
-        "desc": "刚需占比大幅钝化 · 储蓄率跨越40%~48% · 资本积累黄金期",
-        "target_savings_rate": 0.45,
-        "security_level": "💎 资产复利与家庭防火墙期（全员重疾+大类配置）",
-        "student_allowed": None,
-        "normal_allowed": None,
-    },
-    {
-        "max": float("inf"),
-        "name": "财富增值扩张阶梯",
-        "tag": "👑 财富增值扩张阶梯 (20000+元)",
-        "desc": "边际消费最低 · 超55%归入资本扩张 · 被动收益飞轮",
-        "target_savings_rate": 0.55,
-        "security_level": "👑 综合财富传承与资本护城河",
-        "student_allowed": None,
-        "normal_allowed": None,
-    }
-]
-
-def get_tier_info(income):
-    for t in TIER_DEFINITIONS:
-        if income <= t["max"]:
-            return t
-    return TIER_DEFINITIONS[-1]
-
-PRESET_EXPENSES = [
-    ("food",         "餐饮饮食",  "1050", 0.20, 0.35, "刚需。日均35元工作餐，避免高频外卖"),
-    ("housing",      "住房房租",  "1050", 0.15, 0.30, "刚需。控制在30%以内，城中村单间/合租"),
-    ("transport",    "交通通勤",  "150",  0.03, 0.10, "地铁/公交/单车优先"),
-    ("phone",        "通讯话费",  "60",   0.01, 0.04, "大流量优惠卡，防套餐超标"),
-    ("fun",          "娱乐社交",  "150",  0.05, 0.15, "适度社交，量入为出"),
-    ("shopping",     "购物网购",  "120",  0.03, 0.10, "必需品清单制，延迟满足"),
-    ("study",        "学习提升",  "80",   0.02, 0.08, "高回报自我投资，买书/技能考证"),
-    ("health",       "医疗健康",  "50",   0.01, 0.05, "常备药、体检与基础健康储备"),
-    ("insurance",    "商业保险",  "0",    0.02, 0.06, "百万医疗险/意外险，工薪期必配"),
-    ("beauty",       "服装美容",  "80",   0.02, 0.10, "理发与基础护肤，理性消费"),
-    ("drink",        "烟酒茶饮",  "40",   0.01, 0.05, "奶茶咖啡最易偷走储蓄"),
-    ("subscription", "订阅会员",  "20",   0.01, 0.04, "定期清理不用的自动续费"),
-    ("love",         "恋爱资金",  "0",    0.03, 0.12, "节日与日常，适度理性"),
-    ("gift",         "人情往来",  "0",    0.02, 0.08, "份子钱、礼品"),
-    ("electronics",  "电子数码",  "0",    0.02, 0.08, "设备折旧更新储备"),
-    ("fitness",      "健身运动",  "0",    0.01, 0.06, "居家/户外跑步，谨慎大额办卡"),
-    ("parents",      "孝敬父母",  "0",    0.05, 0.15, "量力而行，心意为主"),
-    ("travel",       "旅游度假",  "0",    0.03, 0.10, "年度旅游平摊"),
-    ("debt",         "债务还款",  "0",    0.00, 0.20, "严禁消费贷，优先结清高息负债"),
-    ("car",          "车辆费用",  "0",    0.05, 0.15, "油费/停车/车险"),
-    ("other",        "其他杂项",  "60",   0.00, 0.08, "零散日常日用品支出"),
-]
-
-IDENTITY_PRESETS = {
-    "全日制大学生": {
-        "income": "1800", "savings": "800", "invest": "0", "target": "200", "social_mode": "无社保", "social_base": "0",
-        "defaults": {"food": "1000", "housing": "0", "transport": "50", "phone": "40", "fun": "150", "shopping": "100", "study": "100", "health": "30", "beauty": "50", "drink": "40", "subscription": "20", "other": "50"},
-        "emergency_months": 1,
-        "feature": "零房租、无社保税负；以食堂餐饮与学业提升为主，攒下人生第一笔小额备用金。"
-    },
-    "职场新人（1-3年）": {
-        "income": "4200", "savings": "3000", "invest": "0", "target": "500", "social_mode": "单位代缴", "social_base": "3800",
-        "defaults": {"food": "1050", "housing": "1050", "transport": "150", "phone": "60", "fun": "150", "shopping": "120", "study": "80", "health": "50", "beauty": "80", "drink": "40", "subscription": "20", "other": "60"},
-        "emergency_months": 2,
-        "feature": "基层新人现实中位数（3500~5000元），房租约千元+温饱兜底，严控非必需开销，每月实打实攒下500元。"
-    },
-    "自由职业/灵活就业": {
-        "income": "4500", "savings": "6000", "invest": "0", "target": "600", "social_mode": "无社保", "social_base": "0",
-        "defaults": {"food": "1050", "housing": "1100", "transport": "100", "phone": "60", "fun": "100", "shopping": "100", "study": "80", "health": "50", "beauty": "50", "drink": "40", "subscription": "20", "other": "50"},
-        "emergency_months": 3,
-        "feature": "普通接单/零工起步常态（3500~5500元），收入易波动，手头备1~2个月现金流防断粮，严控固定开支。"
-    },
-    "职场工薪（3-5年）": {
-        "income": "7500", "savings": "20000", "invest": "8000", "target": "1600", "social_mode": "单位代缴", "social_base": "6500",
-        "defaults": {"food": "1300", "housing": "1500", "transport": "240", "phone": "80", "fun": "260", "shopping": "220", "study": "120", "health": "80", "insurance": "120", "beauty": "120", "drink": "70", "subscription": "30", "parents": "200", "other": "80"},
-        "emergency_months": 3,
-        "feature": "工薪扎实稳定期（6000~8000元），收支有余，配置百万医疗险，稳步充实应急储备池。"
-    },
-    "高薪骨干（1.5万+）": {
-        "income": "18000", "savings": "60000", "invest": "50000", "target": "6500", "social_mode": "单位代缴", "social_base": "18000",
-        "defaults": {"food": "2200", "housing": "3200", "transport": "450", "phone": "100", "fun": "500", "shopping": "500", "study": "300", "health": "180", "insurance": "500", "beauty": "300", "drink": "150", "subscription": "50", "parents": "600", "travel": "400", "car": "400", "other": "150"},
-        "emergency_months": 6,
-        "feature": "高收入骨干，边际储蓄率显著提升，全方位家庭风险防御与大类资产配置。"
-    }
-}
-
-STUDENT_LOCKED_KEYS = ["housing", "car", "parents", "debt", "insurance"]
 
 def fmt(v):
     return f"{v:,.0f}"
 
+# ==================== 女生专属模型 (包含生理护理与理发美发，贴合女性真实生活消费) ====================
+FEMALE_ESSENTIAL = [
+    ("food",      "餐饮伙食", 0.15, 0.30, "日常三餐、外卖、工作餐、日常食材采购"),
+    ("housing",   "住房房租", 0.15, 0.30, "房租、水电燃气、物业、宿舍学费"),
+    ("transport", "交通通勤", 0.03, 0.08, "地铁、公交、日常打车与出行"),
+    ("phone",     "通讯网络", 0.01, 0.04, "手机话费、宽带网络套餐"),
+    ("health",    "医疗健康", 0.01, 0.05, "常备药品、体检调理、门诊"),
+    ("period",    "生理护理", 0.01, 0.04, "卫生巾/棉条、暖宫贴、经期调理专属"),
+    ("hair",      "理发美发", 0.01, 0.05, "剪发打理、洗吹护理、发型造型与烫染折算"),
+]
+
+FEMALE_LIFESTYLE = [
+    ("beauty",    "护肤美妆", 0.03, 0.12, "水乳精华、防晒彩妆、日常护肤"),
+    ("clothes",   "穿搭鞋包", 0.04, 0.14, "应季衣物、穿搭配饰、鞋袜包包"),
+    ("shop",      "网购百货", 0.03, 0.10, "日用百货、家居好物、高频网购"),
+    ("drink",     "茶饮甜品", 0.01, 0.05, "奶茶果茶、咖啡轻食、下午茶烘焙"),
+    ("fun",       "社交聚会", 0.02, 0.08, "闺蜜聚餐、周末探店、消遣娱乐"),
+    ("travel",    "旅游度假", 0.02, 0.10, "假日出行、周边短途游、拍照打卡"),
+    ("pet",       "萌宠生活", 0.00, 0.08, "猫狗主粮、宠物零食、驱虫护理"),
+    ("digital",   "数码配件", 0.01, 0.05, "手机耳机、充电配件、小数码周边"),
+    ("study",     "自我提升", 0.02, 0.08, "书籍充电、技能考证、兴趣培训"),
+    ("other",     "机动备用", 0.01, 0.06, "临时突发、人情随礼、备用金"),
+]
+
+# ==================== 男生专属模型 (聚焦数码科技、电竞、运动、修容与社交) ====================
+MALE_ESSENTIAL = [
+    ("food",      "餐饮伙食", 0.18, 0.32, "日常三餐、工作餐、日常食材采购"),
+    ("housing",   "住房房租", 0.15, 0.30, "房租、水电煤气、合租单间与物业"),
+    ("transport", "交通通勤", 0.03, 0.08, "地铁、公交、日常通勤打车、加油"),
+    ("phone",     "通讯网络", 0.01, 0.04, "手机话费、宽带网络套餐"),
+    ("health",    "医疗健康", 0.01, 0.05, "常备药品、体检、跌打损伤"),
+    ("groom",     "理发修容", 0.01, 0.04, "理发洗剪吹、剃须修容、男士洁面防晒"),
+]
+
+MALE_LIFESTYLE = [
+    ("digital",   "数码科技", 0.04, 0.15, "电脑硬件、数码科技、外设键鼠、手机数码"),
+    ("game",      "游戏电竞", 0.02, 0.08, "Steam/主机游戏、游戏氪金、影音会员"),
+    ("sport",     "运动健身", 0.02, 0.08, "打球运动、运动球鞋、健身房打卡"),
+    ("fun",       "聚会社交", 0.02, 0.09, "朋友聚餐、消遣宵夜、烟酒应酬"),
+    ("clothes",   "穿搭鞋服", 0.03, 0.10, "运动鞋服、日常穿搭、手表配饰"),
+    ("shop",      "网购日常", 0.02, 0.08, "日常日用百货、消耗品采购"),
+    ("travel",    "旅游户外", 0.02, 0.10, "自驾露营、周末徒步、节假日出游"),
+    ("pet",       "萌宠相伴", 0.00, 0.08, "宠物主粮、日常护理与猫狗用品"),
+    ("study",     "自我提升", 0.02, 0.08, "专业书籍、技术考证、充电培训"),
+    ("other",     "机动备用", 0.01, 0.06, "机动开销、临时应急、人情礼金"),
+]
+
+# 身份预设基准 (男女两套科学基准，杜绝任何默认超支赤字)
+IDENTITY_PRESETS = {
+    "全日制大学生": {
+        "income": "1800", "social_mode": "无社保", "social_base": "0", "target_surplus": "200",
+        "female_defaults": {
+            "food": "800", "housing": "0", "transport": "40", "phone": "30", "health": "15",
+            "period": "40", "hair": "30", "beauty": "80", "clothes": "100", "shop": "80",
+            "drink": "50", "fun": "60", "travel": "50", "pet": "0", "digital": "50",
+            "study": "60", "other": "40"
+        },
+        "male_defaults": {
+            "food": "850", "housing": "0", "transport": "40", "phone": "30", "health": "15",
+            "groom": "30", "digital": "80", "game": "60", "sport": "60", "fun": "80",
+            "clothes": "80", "shop": "60", "travel": "50", "pet": "0", "study": "60", "other": "40"
+        }
+    },
+    "职场新人（1-3年）": {
+        "income": "4200", "social_mode": "单位代缴", "social_base": "3800", "target_surplus": "500",
+        "female_defaults": {
+            "food": "950", "housing": "950", "transport": "120", "phone": "50", "health": "30",
+            "period": "50", "hair": "80", "beauty": "150", "clothes": "180", "shop": "150",
+            "drink": "80", "fun": "120", "travel": "100", "pet": "0", "digital": "60",
+            "study": "80", "other": "60"
+        },
+        "male_defaults": {
+            "food": "1000", "housing": "950", "transport": "120", "phone": "50", "health": "30",
+            "groom": "50", "digital": "150", "game": "100", "sport": "80", "fun": "150",
+            "clothes": "150", "shop": "100", "travel": "100", "pet": "0", "study": "80", "other": "60"
+        }
+    },
+    "自由职业/灵活就业": {
+        "income": "6000", "social_mode": "灵活就业", "social_base": "4200", "target_surplus": "800",
+        "female_defaults": {
+            "food": "1200", "housing": "1300", "transport": "150", "phone": "60", "health": "50",
+            "period": "60", "hair": "120", "beauty": "250", "clothes": "280", "shop": "220",
+            "drink": "100", "fun": "160", "travel": "180", "pet": "0", "digital": "100",
+            "study": "100", "other": "80"
+        },
+        "male_defaults": {
+            "food": "1300", "housing": "1300", "transport": "150", "phone": "60", "health": "50",
+            "groom": "80", "digital": "250", "game": "150", "sport": "120", "fun": "200",
+            "clothes": "220", "shop": "150", "travel": "180", "pet": "0", "study": "100", "other": "80"
+        }
+    },
+    "职场工薪（3-5年）": {
+        "income": "8500", "social_mode": "单位代缴", "social_base": "6000", "target_surplus": "1500",
+        "female_defaults": {
+            "food": "1500", "housing": "1600", "transport": "220", "phone": "80", "health": "80",
+            "period": "80", "hair": "180", "beauty": "400", "clothes": "450", "shop": "350",
+            "drink": "150", "fun": "250", "travel": "300", "pet": "100", "digital": "150",
+            "study": "150", "other": "120"
+        },
+        "male_defaults": {
+            "food": "1600", "housing": "1600", "transport": "250", "phone": "80", "health": "80",
+            "groom": "100", "digital": "400", "game": "200", "sport": "180", "fun": "350",
+            "clothes": "350", "shop": "200", "travel": "300", "pet": "100", "study": "150", "other": "120"
+        }
+    },
+    "高薪骨干（1.5万+）": {
+        "income": "16000", "social_mode": "单位代缴", "social_base": "12000", "target_surplus": "3500",
+        "female_defaults": {
+            "food": "2200", "housing": "2800", "transport": "400", "phone": "120", "health": "150",
+            "period": "120", "hair": "300", "beauty": "800", "clothes": "900", "shop": "700",
+            "drink": "250", "fun": "500", "travel": "600", "pet": "200", "digital": "300",
+            "study": "300", "other": "200"
+        },
+        "male_defaults": {
+            "food": "2400", "housing": "2800", "transport": "500", "phone": "120", "health": "150",
+            "groom": "200", "digital": "800", "game": "400", "sport": "350", "fun": "700",
+            "clothes": "600", "shop": "400", "travel": "600", "pet": "200", "study": "300", "other": "200"
+        }
+    }
+}
+
+STUDENT_LOCKED_KEYS = ["housing"]
+
+# 社保费率
+SOCIAL_RATES = {
+    "单位代缴": {
+        "pension_p": 0.08, "medical_p": 0.02, "unemp_p": 0.005, "fund_p": 0.07,
+        "pension_e": 0.16, "medical_e": 0.09, "unemp_e": 0.005, "injury_e": 0.004, "birth_e": 0.008, "fund_e": 0.07,
+    },
+    "灵活就业": {"pension_p": 0.20, "medical_p": 0.08, "unemp_p": 0.0, "fund_p": 0.0, "total_e": 0.0},
+    "无社保": {"pension_p": 0.0, "medical_p": 0.0, "unemp_p": 0.0, "fund_p": 0.0, "total_e": 0.0}
+}
+
+TAX_BRACKETS = [
+    (3000, 0.03, 0),
+    (12000, 0.10, 210),
+    (25000, 0.20, 1410),
+    (35000, 0.25, 2660),
+    (55000, 0.30, 4410),
+    (80000, 0.35, 7160),
+    (float('inf'), 0.45, 15160),
+]
+
 def compute_tax(taxable):
     if taxable <= 0:
         return 0.0
-    brackets = [
-        (3000, 0.03, 0), (12000, 0.10, 210), (25000, 0.20, 1410),
-        (35000, 0.25, 2660), (55000, 0.30, 4410), (80000, 0.35, 7160),
-        (float("inf"), 0.45, 15160),
-    ]
-    for limit, rate, deduct in brackets:
+    for limit, rate, quick_sub in TAX_BRACKETS:
         if taxable <= limit:
-            return taxable * rate - deduct
-    return taxable * 0.45 - 15160
+            return max(0.0, taxable * rate - quick_sub)
+    return 0.0
 
-
-# ==================== 彻底修复柱状图与数字显示的看板组件 ====================
-class FixedChartsWidget(BoxLayout):
-    """
-    双图表看板：
-    1. 环形甜甜圈图：Canvas 绘制高饱和色块，右侧垂直列表详细呈现各项【真实金额】与【百分比】。
-    2. 收支对比五色柱状图：常驻 5 根动态柱子，顶端大字标注【¥金额 + 占比】，底部居中展示【分类名称】。
-    彻底解决柱状图不动、数字看不见的 Bug！
-    """
+# ==================== 极简收支四柱流向图 ====================
+class MiniCashflowWidget(BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.orientation = "vertical"
         self.size_hint_y = None
-        self.height = dp(470)
-        self.padding = dp(8)
-        self.spacing = dp(10)
+        self.height = dp(120)
+        self.spacing = dp(4)
 
-        # 标题栏
-        self.lbl_head = Label(text="📊 月度收支结构与目标对比可视化 (全数字清晰看板)", font_size=dp(13), bold=True,
-                              color=(0.14, 0.39, 0.92, 1), size_hint_y=None, height=dp(24))
-        self.add_widget(self.lbl_head)
+        self.bars_box = BoxLayout(orientation="horizontal", spacing=dp(8), size_hint=(1, 1))
+        self.add_widget(self.bars_box)
 
-        # 1. 环形图容器
-        donut_box = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(180), spacing=dp(8))
-        self.pie_draw_box = BoxLayout(size_hint=(0.48, 1))
-        donut_box.add_widget(self.pie_draw_box)
-        self.pie_draw_box.bind(pos=self.redraw_pie, size=self.redraw_pie)
-
-        self.pie_legend_box = BoxLayout(orientation="vertical", size_hint=(0.52, 1), spacing=dp(4))
-        donut_box.add_widget(self.pie_legend_box)
-        self.add_widget(donut_box)
-
-        # 2. 柱状图容器 (常驻柱子架构，杜绝销毁卡顿)
-        bar_box = BoxLayout(orientation="vertical", size_hint=(1, 1), spacing=dp(4))
-        self.bar_title = Label(text="📈 收支流向与储蓄目标柱状对比", font_size=dp(11), bold=True,
-                               color=(0.35, 0.45, 0.55, 1), size_hint_y=None, height=dp(18))
-        bar_box.add_widget(self.bar_title)
-
-        self.bar_cols_layout = BoxLayout(orientation="horizontal", spacing=dp(6), size_hint=(1, 1))
-        bar_box.add_widget(self.bar_cols_layout)
-        self.add_widget(bar_box)
-
-        # 预先构建 5 根常驻柱子结构
-        self.bar_cols = []
-        cols_cfg = [
-            ("到手", (0.10, 0.28, 0.65, 1)),
-            ("刚需", (0.14, 0.39, 0.92, 1)),
-            ("弹性", (0.55, 0.25, 0.85, 1)),
-            ("结余", (0.02, 0.65, 0.55, 1)),
-            ("目标", (0.01, 0.52, 0.78, 1)),
-        ]
-        for name, col in cols_cfg:
-            c_box = BoxLayout(orientation="vertical", spacing=dp(2), size_hint=(1, 1))
-            lbl_top = Label(text="¥0\n0%", font_size=dp(10), bold=True, size_hint_y=None, height=dp(30))
+        self.cols_def = ["到手", "刚需", "弹性", "结余"]
+        self.col_widgets = []
+        for name in self.cols_def:
+            c_box = BoxLayout(orientation="vertical", spacing=dp(1), size_hint=(1, 1))
+            lbl_top = Label(text="￥0\n0%", font_size=dp(10), bold=True, size_hint_y=None, height=dp(28))
+            if FONT_PATH and FONT_PATH != "Roboto":
+                lbl_top.font_name = FONT_PATH
             
             wgt_bar = Widget(size_hint=(1, 1))
             with wgt_bar.canvas:
                 c_track = Color(0.85, 0.90, 0.96, 0.40)
-                rect_track = RoundedRectangle(pos=(0, 0), size=(0, 0), radius=[dp(4), dp(4), 0, 0])
-                c_inst = Color(*col)
-                rect_inst = RoundedRectangle(pos=(0, 0), size=(0, 0), radius=[dp(4), dp(4), 0, 0])
-            
-            lbl_bot = Label(text=name, font_size=dp(11), bold=True, size_hint_y=None, height=dp(20))
-            
+                rect_track = RoundedRectangle(pos=(0, 0), size=(0, 0), radius=[dp(3), dp(3), 0, 0])
+                c_inst = Color(0.14, 0.42, 0.95, 1)
+                rect_inst = RoundedRectangle(pos=(0, 0), size=(0, 0), radius=[dp(3), dp(3), 0, 0])
+
+            lbl_bot = Label(text=name, font_size=dp(11), bold=True, size_hint_y=None, height=dp(18))
+            if FONT_PATH and FONT_PATH != "Roboto":
+                lbl_bot.font_name = FONT_PATH
             c_box.add_widget(lbl_top)
             c_box.add_widget(wgt_bar)
             c_box.add_widget(lbl_bot)
-            self.bar_cols_layout.add_widget(c_box)
-            
-            self.bar_cols.append({
-                "name": name, "color": col, "lbl_top": lbl_top,
+            self.bars_box.add_widget(c_box)
+
+            col_data = {
+                "name": name, "lbl_top": lbl_top,
                 "wgt_bar": wgt_bar, "c_track": c_track, "rect_track": rect_track,
-                "c_inst": c_inst, "rect_inst": rect_inst,
-                "lbl_bot": lbl_bot
-            })
-            wgt_bar.bind(pos=lambda *a: self.redraw_bars(), size=lambda *a: self.redraw_bars())
+                "c_inst": c_inst, "rect_inst": rect_inst, "lbl_bot": lbl_bot
+            }
+            self.col_widgets.append(col_data)
+            wgt_bar.bind(pos=lambda *a: self.redraw(), size=lambda *a: self.redraw())
 
-        self.chart_data = {"takehome": 1, "essential": 0, "flexible": 0, "surplus": 0, "target": 0, "expenses": {}}
-        self.slice_colors = [
-            (0.14, 0.39, 0.92, 1), (0.02, 0.65, 0.55, 1), (0.95, 0.40, 0.14, 1),
-            (0.55, 0.25, 0.85, 1), (0.10, 0.70, 0.90, 1), (0.90, 0.70, 0.10, 1),
-            (0.85, 0.20, 0.40, 1), (0.40, 0.60, 0.20, 1)
-        ]
+        self.data = {"takehome": 1, "essential": 0, "flexible": 0, "surplus": 0}
+        self.current_theme = THEMES["light"]
 
-    def update_data(self, data, theme):
-        self.chart_data = data
+    def update_data(self, takehome, essential, flexible, surplus, theme):
+        self.data = {
+            "takehome": takehome, "essential": essential,
+            "flexible": flexible, "surplus": surplus
+        }
         self.current_theme = theme
-        self.lbl_head.color = theme["accent"]
-        self.bar_title.color = theme["text_secondary"]
-        self.redraw_pie()
-        self.redraw_bars()
+        self.redraw()
 
-    def redraw_pie(self, *a):
-        self.pie_draw_box.canvas.clear()
-        self.pie_legend_box.clear_widgets()
-
-        w = self.pie_draw_box.width
-        h = self.pie_draw_box.height
-        x = self.pie_draw_box.x
-        y = self.pie_draw_box.y
-
-        if w <= 10 or h <= 10:
-            return
-
-        cx = x + w * 0.5
-        cy = y + h * 0.5
-        r = min(w * 0.44, h * 0.44)
-
-        expenses = self.chart_data.get("expenses", {})
-        total_exp = sum(expenses.values())
-        sorted_exp = sorted(expenses.items(), key=lambda it: it[1], reverse=True)
-
-        with self.pie_draw_box.canvas:
-            start_angle = 0
-            if total_exp > 0:
-                for idx, (name, amt) in enumerate(sorted_exp[:7]):
-                    if amt <= 0:
-                        continue
-                    span = (amt / total_exp) * 360.0
-                    Color(*self.slice_colors[idx % len(self.slice_colors)])
-                    Ellipse(pos=(cx - r, cy - r), size=(r * 2, r * 2),
-                            angle_start=start_angle, angle_end=start_angle + span)
-                    start_angle += span
-
-                theme_card_bg = getattr(self, "current_theme", THEMES["light"])["bg_card"]
-                Color(*theme_card_bg)
-                inner_r = r * 0.58
-                Ellipse(pos=(cx - inner_r, cy - inner_r), size=(inner_r * 2, inner_r * 2))
-            else:
-                Color(0.8, 0.85, 0.9, 1)
-                Ellipse(pos=(cx - r, cy - r), size=(r * 2, r * 2))
-
-        theme_txt_p = getattr(self, "current_theme", THEMES["light"])["text_primary"]
-        theme_txt_s = getattr(self, "current_theme", THEMES["light"])["text_secondary"]
-
-        head_row = Label(text=f"总支出: ¥{fmt(total_exp)}", font_size=dp(13), bold=True,
-                         color=theme_txt_p, size_hint_y=None, height=dp(20), halign="left")
-        head_row.bind(size=head_row.setter('text_size'))
-        self.pie_legend_box.add_widget(head_row)
-
-        for idx, (name, amt) in enumerate(sorted_exp[:6]):
-            if amt <= 0:
-                continue
-            pct = (amt / total_exp * 100) if total_exp > 0 else 0
-            row = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(22), spacing=dp(4))
-            
-            col_box = Widget(size_hint=(None, None), size=(dp(10), dp(10)), pos_hint={"center_y": 0.5})
-            c = self.slice_colors[idx % len(self.slice_colors)]
-            with col_box.canvas:
-                Color(*c)
-                RoundedRectangle(pos=col_box.pos, size=col_box.size, radius=[dp(2)])
-            col_box.bind(pos=lambda *a, cb=col_box: setattr(cb.canvas.children[-1], 'pos', cb.pos))
-            row.add_widget(col_box)
-
-            lbl_info = Label(text=f"{name}: ¥{fmt(amt)} ({pct:.0f}%)", font_size=dp(11),
-                             color=theme_txt_s, halign="left", valign="middle")
-            lbl_info.bind(size=lbl_info.setter('text_size'))
-            row.add_widget(lbl_info)
-
-            self.pie_legend_box.add_widget(row)
-
-    def redraw_bars(self, *a):
-        """动态更新 5 根常驻柱子，高频响应输入，杜绝冻结！"""
-        takehome = max(1.0, self.chart_data.get("takehome", 1.0))
+    def redraw(self, *args):
+        takehome = max(1.0, self.data.get("takehome", 1.0))
+        surplus_val = self.data.get("surplus", 0)
         values = [
-            self.chart_data.get("takehome", 0),
-            self.chart_data.get("essential", 0),
-            self.chart_data.get("flexible", 0),
-            max(0, self.chart_data.get("surplus", 0)),
-            self.chart_data.get("target", 0)
+            self.data.get("takehome", 0),
+            self.data.get("essential", 0),
+            self.data.get("flexible", 0),
+            max(0, surplus_val)
         ]
         max_val = max(values + [1.0])
-        theme = getattr(self, "current_theme", THEMES["light"])
-        theme_txt_p = theme["text_primary"]
-        theme_txt_s = theme["text_secondary"]
-        is_dark = (theme.get("bg_root") == THEMES["dark"]["bg_root"])
+        t = self.current_theme
+        txt_p = t["text_primary"]
+        txt_s = t["text_secondary"]
 
-        for col_info, val in zip(self.bar_cols, values):
+        palette = [
+            t.get("chart_income", t["accent"]),
+            t.get("chart_need", (0.16, 0.58, 0.82, 1.0)),
+            t.get("chart_want", (0.42, 0.38, 0.80, 1.0)),
+            t.get("chart_surplus", t["accent_surplus"]) if surplus_val >= 0 else t["accent_red"]
+        ]
+
+        for col_data, val, col_color in zip(self.col_widgets, values, palette):
             pct = (val / takehome * 100) if takehome > 0 else 0
-            col_info["lbl_top"].text = f"¥{fmt(val)}\n{pct:.0f}%"
-            col_info["lbl_top"].color = theme_txt_p
-            col_info["lbl_bot"].color = theme_txt_s
-            
-            wb = col_info["wgt_bar"]
+            if col_data["name"] == "结余" and surplus_val < 0:
+                col_data["lbl_top"].text = f"-￥{fmt(-surplus_val)}\n赤字"
+                col_data["lbl_top"].color = t["accent_red"]
+            else:
+                col_data["lbl_top"].text = f"￥{fmt(val)}\n{pct:.0f}%"
+                col_data["lbl_top"].color = txt_p
+            col_data["lbl_bot"].color = txt_s
+
+            wb = col_data["wgt_bar"]
             if wb.height > 0 and wb.width > 0:
-                bw = min(dp(26), max(dp(10), wb.width * 0.60))
+                bw = min(dp(28), max(dp(10), wb.width * 0.62))
                 bx = wb.x + (wb.width - bw) / 2
                 by = wb.y
 
-                # 背景轨道底槽
-                col_info["rect_track"].pos = (bx, by)
-                col_info["rect_track"].size = (bw, wb.height)
-                col_info["c_track"].rgba = (0.35, 0.45, 0.55, 0.20) if is_dark else (0.85, 0.90, 0.96, 0.45)
+                col_data["rect_track"].pos = (bx, by)
+                col_data["rect_track"].size = (bw, wb.height)
+                col_data["c_track"].rgba = t.get("track_color", (0.85, 0.90, 0.96, 0.45))
 
-                # 动态填充柱
                 bh = (val / max_val) * wb.height if max_val > 0 else dp(4)
                 bh = max(dp(4), min(wb.height, bh))
-                col_info["rect_inst"].pos = (bx, by)
-                col_info["rect_inst"].size = (bw, bh)
+                col_data["rect_inst"].pos = (bx, by)
+                col_data["rect_inst"].size = (bw, bh)
+                col_data["c_inst"].rgba = col_color
 
 
 # ==================== 主应用程序 ====================
 class FinancePlannerApp(App):
     def build(self):
-        self.title = "个人财务与安全规划 Pro"
-        self.current_theme_key = "light"
+        self.title = "个人财务规划"
+        self.current_theme_key = "pink"
+        self.current_gender = "female"
         self.custom_items = []
         self.expense_widgets = []
+        self.active_identity = "职场新人（1-3年）"
+        self.is_initializing = True
+
+        # 读取持久化 JSON 数据
+        self.user_data = storage.load_user_data()
 
         # 根布局
         self.root_layout = BoxLayout(orientation='vertical')
         with self.root_layout.canvas.before:
-            self.root_bg_color = Color(*THEMES["light"]["bg_root"])
-            self.root_bg_rect = Rectangle(pos=self.root_layout.pos, size=self.root_layout.size)
-        self.root_layout.bind(pos=lambda *a: setattr(self.root_bg_rect, 'pos', self.root_layout.pos),
-                              size=lambda *a: setattr(self.root_bg_rect, 'size', self.root_layout.size))
+            self.root_bg_color = Color(*THEMES[self.current_theme_key]["bg_root"])
+            self.root_bg_rect = RoundedRectangle(pos=(0, 0), size=Window.size)
+        self.root_layout.bind(pos=lambda *a: self._update_root_bg(), size=lambda *a: self._update_root_bg())
 
-        # 1. 顶部 Header
-        self.header = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(70), padding=[dp(14), dp(8)], spacing=dp(8))
+        # 1. 顶部 Header 现代扁平导航条 (清爽无杂乱切换按钮)
+        self.header = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(46), padding=[dp(14), dp(4)])
         with self.header.canvas.before:
-            self.header_bg_color = Color(*THEMES["light"]["bg_header"])
-            self.header_bg_rect = Rectangle(pos=self.header.pos, size=self.header.size)
-        self.header.bind(pos=lambda *a: setattr(self.header_bg_rect, 'pos', self.header.pos),
-                         size=lambda *a: setattr(self.header_bg_rect, 'size', self.header.size))
+            self.header_bg_color = Color(*THEMES[self.current_theme_key]["bg_header"])
+            self.header_bg_rect = RoundedRectangle(pos=(0, 0), size=(Window.width, dp(46)))
+        self.header.bind(pos=lambda *a: self._update_header_bg(), size=lambda *a: self._update_header_bg())
 
-        title_box = BoxLayout(orientation='vertical', size_hint=(0.75, 1))
-        self.lbl_title = Label(text="🧭 个人智能财务安全规划", font_size=dp(15), bold=True,
-                               color=(1, 1, 1, 1), halign='left', valign='middle')
-        self.lbl_title.bind(size=self.lbl_title.setter('text_size'))
-        self.lbl_sub = Label(text="全维防御网 · 生存底线优先 · 阶梯式匹配", font_size=dp(10),
-                             color=THEMES["light"]["text_sub"], halign='left', valign='middle')
-        self.lbl_sub.bind(size=self.lbl_sub.setter('text_size'))
-        title_box.add_widget(self.lbl_title)
-        title_box.add_widget(self.lbl_sub)
-        self.header.add_widget(title_box)
-
-        # 胶囊主题切换按钮
-        self.btn_theme = ModernButton(text="☀️ 晴空", font_size=dp(11), bold=True,
-                                      size_hint=(0.25, None), height=dp(38),
-                                      pos_hint={"center_y": 0.5}, bg_color=(0.22, 0.45, 0.95, 1))
-        self.btn_theme.bind(on_press=self.cycle_theme)
-        self.header.add_widget(self.btn_theme)
-
+        self.lbl_app_title = Label(text="个人财务规划", font_size=dp(16), bold=True,
+                                   color=THEMES[self.current_theme_key]["text_header"], halign='center', valign='middle')
+        self.lbl_app_title.bind(size=self.lbl_app_title.setter('text_size'))
+        self.header.add_widget(self.lbl_app_title)
         self.root_layout.add_widget(self.header)
 
         # 2. 中间滚动主体
         scroll = ScrollView(size_hint=(1, 1), do_scroll_x=False)
-        self.content = BoxLayout(orientation='vertical', size_hint_y=None, padding=dp(10), spacing=dp(10))
+        self.content = BoxLayout(orientation='vertical', size_hint_y=None, padding=dp(10), spacing=dp(8))
         self.content.bind(minimum_height=self.content.setter('height'))
 
-        # ---------- 卡片 1: 身份与基础资金 ----------
-        self.card1 = CardLayout()
-        self.c1_head = Label(text="① 身份选择与资金基础", font_size=dp(14), bold=True,
-                             color=THEMES["light"]["accent"], size_hint_y=None, height=dp(22))
-        self.card1.add_widget(self.c1_head)
+        # ==================== 大号计算器核心数显大屏 ====================
+        self.display_card = SoftCard(bg_color=THEMES[self.current_theme_key]["bg_display"], radius=14, padding=dp(10), spacing=dp(4))
+        
+        formula_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(38), spacing=dp(2))
+        
+        self.lbl_disp_income = Label(text="到手 ￥0", font_size=dp(13), bold=True,
+                                     color=THEMES[self.current_theme_key]["accent"], halign='center', valign='middle')
+        self.lbl_disp_minus_debt = Label(text="", font_size=dp(14), bold=True,
+                                         color=THEMES[self.current_theme_key]["text_secondary"], size_hint_x=None, width=0)
+        self.lbl_disp_debt = Label(text="", font_size=dp(13), bold=True,
+                                   color=THEMES[self.current_theme_key]["accent_red"], size_hint_x=None, width=0, halign='center', valign='middle')
+        self.lbl_disp_minus = Label(text="-", font_size=dp(14), bold=True,
+                                    color=THEMES[self.current_theme_key]["text_secondary"], size_hint_x=None, width=dp(10))
+        self.lbl_disp_exp = Label(text="支出 ￥0", font_size=dp(13), bold=True,
+                                  color=THEMES[self.current_theme_key]["text_primary"], halign='center', valign='middle')
+        self.lbl_disp_equal = Label(text="=", font_size=dp(14), bold=True,
+                                    color=THEMES[self.current_theme_key]["text_secondary"], size_hint_x=None, width=dp(10))
+        self.lbl_disp_surplus = Label(text="结余 ￥0", font_size=dp(14), bold=True,
+                                      color=THEMES[self.current_theme_key]["accent_surplus"], halign='center', valign='middle')
+        
+        formula_box.add_widget(self.lbl_disp_income)
+        formula_box.add_widget(self.lbl_disp_minus_debt)
+        formula_box.add_widget(self.lbl_disp_debt)
+        formula_box.add_widget(self.lbl_disp_minus)
+        formula_box.add_widget(self.lbl_disp_exp)
+        formula_box.add_widget(self.lbl_disp_equal)
+        formula_box.add_widget(self.lbl_disp_surplus)
+        self.display_card.add_widget(formula_box)
 
-        self.spinner_id = Spinner(
-            text="职场新人（1-3年）",
-            values=list(IDENTITY_PRESETS.keys()),
-            font_size=dp(13),
-            size_hint_y=None,
-            height=dp(38),
-            background_color=THEMES["light"]["accent"],
-            color=(1, 1, 1, 1)
+        # 状态副标题（自动与目标存储同步对比）
+        self.lbl_disp_sub = Label(text="支出占比 0% | 自由结余率 0%", font_size=dp(11),
+                                  color=THEMES[self.current_theme_key]["text_secondary"], size_hint_y=None, height=dp(18), halign='center')
+        self.display_card.add_widget(self.lbl_disp_sub)
+
+        self.content.add_widget(self.display_card)
+
+        # ==================== 顶部交互控制卡片 ====================
+        self.ctrl_card = SoftCard(bg_color=THEMES[self.current_theme_key]["bg_card"], radius=12, padding=dp(10), spacing=dp(8))
+
+        # 第一排：月收入输入 + 性别切换双胶囊
+        row1 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(36), spacing=dp(8))
+        
+        self.lbl_in_title = Label(text="税前月薪:", font_size=dp(12), color=THEMES[self.current_theme_key]["text_primary"],
+                                  size_hint_x=None, width=dp(60), halign='left')
+        self.lbl_in_title.bind(size=self.lbl_in_title.setter('text_size'))
+        row1.add_widget(self.lbl_in_title)
+
+        self.in_income = TextInput(text="4200", multiline=False, input_filter='float',
+                                   font_size=dp(13), size_hint=(0.42, 1), padding=[dp(8), dp(8)],
+                                   foreground_color=THEMES[self.current_theme_key]["text_primary"],
+                                   background_color=THEMES[self.current_theme_key]["bg_input"])
+        self.in_income.bind(text=self.on_input_change)
+        row1.add_widget(self.in_income)
+
+        self.btn_male = ModernButton(text="男生版", font_size=dp(12),
+                                     size_hint=(0.28, 1), bg_color=(1, 1, 1, 1),
+                                     color=THEMES[self.current_theme_key]["text_secondary"])
+        self.btn_male.bind(on_press=lambda *a: self.switch_gender("male"))
+        row1.add_widget(self.btn_male)
+
+        self.btn_female = ModernButton(text="女生版", font_size=dp(12), bold=True,
+                                       size_hint=(0.28, 1), bg_color=THEMES[self.current_theme_key]["accent_female"],
+                                       color=(1, 1, 1, 1))
+        self.btn_female.bind(on_press=lambda *a: self.switch_gender("female"))
+        row1.add_widget(self.btn_female)
+
+        self.ctrl_card.add_widget(row1)
+
+        # 第二排：现代化身份选择卡片按钮 + 一键智能精算按钮
+        row2 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(38), spacing=dp(8))
+
+        self.btn_identity = ModernButton(
+            text=f"{self.active_identity}  ▼",
+            font_size=dp(11),
+            size_hint=(0.55, 1),
+            bg_color=THEMES[self.current_theme_key]["bg_input"],
+            color=THEMES[self.current_theme_key]["text_primary"]
         )
-        self.spinner_id.bind(text=self.on_identity_change)
-        self.card1.add_widget(self.spinner_id)
+        self.btn_identity.bind(on_press=self.show_identity_picker)
+        row2.add_widget(self.btn_identity)
 
-        grid_in = GridLayout(cols=2, spacing=dp(6), size_hint_y=None)
-        grid_in.bind(minimum_height=grid_in.setter('height'))
+        self.btn_smart_plan = ModernButton(
+            text="一键智能精算",
+            font_size=dp(12),
+            bold=True,
+            size_hint=(0.45, 1),
+            bg_color=THEMES[self.current_theme_key]["btn_plan_bg"],
+            color=THEMES[self.current_theme_key]["btn_plan_fg"]
+        )
+        self.btn_smart_plan.bind(on_press=self.do_smart_plan)
+        row2.add_widget(self.btn_smart_plan)
 
-        self.lbl_in_income = Label(text="每月税前收入(元):", font_size=dp(12), color=THEMES["light"]["text_secondary"], size_hint_y=None, height=dp(32))
-        grid_in.add_widget(self.lbl_in_income)
-        self.in_income = TextInput(text="4200", multiline=False, input_filter='float', font_size=dp(13), size_hint_y=None, height=dp(34))
-        self.in_income.bind(text=self.refresh_preview)
-        grid_in.add_widget(self.in_income)
+        self.ctrl_card.add_widget(row2)
 
-        self.lbl_in_savings = Label(text="现有活期存款(元):", font_size=dp(12), color=THEMES["light"]["text_secondary"], size_hint_y=None, height=dp(32))
-        grid_in.add_widget(self.lbl_in_savings)
-        self.in_savings = TextInput(text="3000", multiline=False, input_filter='float', font_size=dp(13), size_hint_y=None, height=dp(34))
-        self.in_savings.bind(text=self.refresh_preview)
-        grid_in.add_widget(self.in_savings)
+        # 第三排：月度还债/欠款输入 + 动态状态 (房贷/车贷/信用卡/花呗/分期等)
+        row_debt = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(32), spacing=dp(8))
+        self.lbl_debt_title = Label(text="月还负债:", font_size=dp(12), color=THEMES[self.current_theme_key]["text_secondary"],
+                                    size_hint_x=None, width=dp(60), halign='left')
+        self.lbl_debt_title.bind(size=self.lbl_debt_title.setter('text_size'))
+        row_debt.add_widget(self.lbl_debt_title)
 
-        self.lbl_in_invest = Label(text="理财投资(元):", font_size=dp(12), color=THEMES["light"]["text_secondary"], size_hint_y=None, height=dp(32))
-        grid_in.add_widget(self.lbl_in_invest)
-        self.in_invest = TextInput(text="0", multiline=False, input_filter='float', font_size=dp(13), size_hint_y=None, height=dp(34))
-        self.in_invest.bind(text=self.refresh_preview)
-        grid_in.add_widget(self.in_invest)
+        self.in_debt = TextInput(text="0", multiline=False, input_filter='float',
+                                 font_size=dp(12), size_hint=(0.38, 1), padding=[dp(8), dp(6)],
+                                 foreground_color=THEMES[self.current_theme_key]["text_primary"],
+                                 background_color=THEMES[self.current_theme_key]["bg_input"])
+        self.in_debt.bind(text=self.on_input_change)
+        row_debt.add_widget(self.in_debt)
 
-        self.lbl_in_target = Label(text="月储蓄目标(元):", font_size=dp(12), color=THEMES["light"]["text_secondary"], size_hint_y=None, height=dp(32))
-        grid_in.add_widget(self.lbl_in_target)
-        self.in_target = TextInput(text="500", multiline=False, input_filter='float', font_size=dp(13), size_hint_y=None, height=dp(34))
-        self.in_target.bind(text=self.refresh_preview)
-        grid_in.add_widget(self.in_target)
+        self.lbl_debt_status = Label(text="零负债 无月供压力", font_size=dp(11),
+                                     color=THEMES[self.current_theme_key]["accent_surplus"],
+                                     size_hint=(0.62, 1), halign='center', valign='middle')
+        self.lbl_debt_status.bind(size=self.lbl_debt_status.setter('text_size'))
+        row_debt.add_widget(self.lbl_debt_status)
 
-        self.card1.add_widget(grid_in)
-        self.content.add_widget(self.card1)
+        self.ctrl_card.add_widget(row_debt)
 
-        # ---------- 卡片 2: 薪资阶梯与安全感知徽章 ----------
-        self.card2 = CardLayout(bg_color=THEMES["light"]["tier_bg"])
-        self.lbl_tier_tag = DynamicLabel(text="🌱 阶梯定位：计算中...", font_size=dp(13), bold=True, color=THEMES["light"]["accent"])
-        self.card2.add_widget(self.lbl_tier_tag)
+        # 第四排：目标存储金额输入 (自动持久化)
+        row3 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(32), spacing=dp(8))
+        self.lbl_target_title = Label(text="目标储蓄:", font_size=dp(12), color=THEMES[self.current_theme_key]["text_secondary"],
+                                      size_hint_x=None, width=dp(60), halign='left')
+        self.lbl_target_title.bind(size=self.lbl_target_title.setter('text_size'))
+        row3.add_widget(self.lbl_target_title)
 
-        self.lbl_tier_desc = DynamicLabel(text="", font_size=dp(12), color=THEMES["light"]["text_secondary"])
-        self.card2.add_widget(self.lbl_tier_desc)
+        self.in_target_surplus = TextInput(text="500", multiline=False, input_filter='float',
+                                           font_size=dp(12), size_hint=(0.38, 1), padding=[dp(8), dp(6)],
+                                           foreground_color=THEMES[self.current_theme_key]["text_primary"],
+                                           background_color=THEMES[self.current_theme_key]["bg_input"])
+        self.in_target_surplus.bind(text=self.on_input_change)
+        row3.add_widget(self.in_target_surplus)
 
-        self.lbl_tier_sec = DynamicLabel(text="", font_size=dp(12), bold=True, color=THEMES["light"]["accent_green"])
-        self.card2.add_widget(self.lbl_tier_sec)
+        self.lbl_target_status = Label(text="月度结余自由达成", font_size=dp(11),
+                                       color=THEMES[self.current_theme_key]["accent_surplus"],
+                                       size_hint=(0.62, 1), halign='center', valign='middle')
+        self.lbl_target_status.bind(size=self.lbl_target_status.setter('text_size'))
+        row3.add_widget(self.lbl_target_status)
 
-        self.content.add_widget(self.card2)
+        self.ctrl_card.add_widget(row3)
 
-        # ---------- 卡片 3: 月度收支健康度大看板 ----------
-        self.card3 = CardLayout()
-        self.c3_head = Label(text="② 月度收支健康度看板", font_size=dp(14), bold=True,
-                             color=THEMES["light"]["accent"], size_hint_y=None, height=dp(22))
-        self.card3.add_widget(self.c3_head)
+        # 第四排：建议储蓄目标提示与一键应用计算
+        row4 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(32), spacing=dp(6))
+        self.lbl_sug_title = Label(text="建议目标:", font_size=dp(12), color=THEMES[self.current_theme_key]["text_secondary"],
+                                   size_hint_x=None, width=dp(60), halign='left')
+        self.lbl_sug_title.bind(size=self.lbl_sug_title.setter('text_size'))
+        row4.add_widget(self.lbl_sug_title)
 
-        self.lbl_kpi_row1 = Label(text="到手可用: 0 元 ｜ 预算支出: 0 元", font_size=dp(12),
-                                  bold=True, color=THEMES["light"]["text_primary"], size_hint_y=None, height=dp(22))
-        self.card3.add_widget(self.lbl_kpi_row1)
+        self.lbl_sug_desc = Label(text="￥360 (黄金20%)", font_size=dp(12), bold=True,
+                                  color=THEMES[self.current_theme_key]["accent"],
+                                  size_hint=(0.42, 1), halign='left', valign='middle')
+        self.lbl_sug_desc.bind(size=self.lbl_sug_desc.setter('text_size'))
+        row4.add_widget(self.lbl_sug_desc)
 
-        self.lbl_kpi_row2 = Label(text="每月净结余: 0 元 ｜ 实际储蓄率: 0%", font_size=dp(12),
-                                  bold=True, color=THEMES["light"]["accent_green"], size_hint_y=None, height=dp(22))
-        self.card3.add_widget(self.lbl_kpi_row2)
+        self.btn_apply_sug = ModernButton(
+            text="采用建议并计算",
+            font_size=dp(11),
+            bold=True,
+            size_hint=(0.58, 1),
+            bg_color=THEMES[self.current_theme_key]["btn_plan_bg"],
+            color=THEMES[self.current_theme_key]["btn_plan_fg"]
+        )
+        self.btn_apply_sug.bind(on_press=self.apply_suggested_target)
+        row4.add_widget(self.btn_apply_sug)
+        self.ctrl_card.add_widget(row4)
 
-        self.lbl_kpi_row3 = Label(text="住房+餐饮刚需: 0 元 (0%)", font_size=dp(11),
-                                  color=THEMES["light"]["text_secondary"], size_hint_y=None, height=dp(20))
-        self.card3.add_widget(self.lbl_kpi_row3)
-        self.content.add_widget(self.card3)
+        # 第五排：三阶储蓄比例快捷胶囊 (极简10% / 稳健20% / 进阶30%)
+        row5 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(28), spacing=dp(6))
+        self.btn_ratio_10 = ModernButton(text="极简 10%: ￥180", font_size=dp(10), size_hint=(1, 1),
+                                         bg_color=THEMES[self.current_theme_key]["bg_input"],
+                                         color=THEMES[self.current_theme_key]["text_primary"])
+        self.btn_ratio_10.bind(on_press=lambda *a: self.apply_ratio_target(0.10))
+        row5.add_widget(self.btn_ratio_10)
 
-        # ---------- 核心操作工具栏 ----------
-        tools_grid = GridLayout(cols=2, spacing=dp(8), size_hint_y=None, height=dp(96))
+        self.btn_ratio_20 = ModernButton(text="黄金 20%: ￥360", font_size=dp(10), bold=True, size_hint=(1.15, 1),
+                                         bg_color=THEMES[self.current_theme_key]["bg_input"],
+                                         color=THEMES[self.current_theme_key]["accent"])
+        self.btn_ratio_20.bind(on_press=lambda *a: self.apply_ratio_target(0.20))
+        row5.add_widget(self.btn_ratio_20)
 
-        self.btn_plan = ModernButton(text="⚡ 薪资分阶智能规划\n(生存优先自动锁项)", font_size=dp(12), bold=True,
-                                     bg_color=THEMES["light"]["accent"], color=(1, 1, 1, 1))
-        self.btn_plan.bind(on_press=self.do_smart_plan)
-        tools_grid.add_widget(self.btn_plan)
+        self.btn_ratio_30 = ModernButton(text="进阶 30%: ￥540", font_size=dp(10), size_hint=(1, 1),
+                                         bg_color=THEMES[self.current_theme_key]["bg_input"],
+                                         color=THEMES[self.current_theme_key]["text_primary"])
+        self.btn_ratio_30.bind(on_press=lambda *a: self.apply_ratio_target(0.30))
+        row5.add_widget(self.btn_ratio_30)
+        self.ctrl_card.add_widget(row5)
 
-        self.btn_report = ModernButton(text="🛡️ 全维安全与财务报告\n(清晰纯净无杂线版)", font_size=dp(12), bold=True,
-                                       bg_color=THEMES["light"]["accent_green"], color=(1, 1, 1, 1))
-        self.btn_report.bind(on_press=self.show_report_popup)
-        tools_grid.add_widget(self.btn_report)
+        self.content.add_widget(self.ctrl_card)
 
-        self.btn_meal = ModernButton(text="🍚 餐饮细分精算器", font_size=dp(12),
-                                     bg_color=(0.18, 0.52, 0.88, 1), color=(1, 1, 1, 1))
-        self.btn_meal.bind(on_press=self.show_meal_calculator)
-        tools_grid.add_widget(self.btn_meal)
+        # ==================== 极简无框开销清单 ====================
+        self.items_card = SoftCard(bg_color=THEMES[self.current_theme_key]["bg_card"], radius=12, padding=dp(10), spacing=dp(6))
 
-        self.btn_wechat = ModernButton(text="🧾 微信账单智能导入", font_size=dp(12),
-                                       bg_color=(0.08, 0.62, 0.38, 1), color=(1, 1, 1, 1))
-        self.btn_wechat.bind(on_press=self.show_wechat_bill_popup)
-        tools_grid.add_widget(self.btn_wechat)
+        list_head = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(26), spacing=dp(6))
+        self.lbl_list_title = Label(text="支出细目精算 (锁定项自动保护并重平衡)", font_size=dp(12), bold=True,
+                                    color=THEMES[self.current_theme_key]["accent"], halign='left')
+        self.lbl_list_title.bind(size=self.lbl_list_title.setter('text_size'))
+        list_head.add_widget(self.lbl_list_title)
 
-        self.content.add_widget(tools_grid)
+        self.btn_lock = ModernButton(text="全锁", font_size=dp(10), size_hint=(None, 1), width=dp(46),
+                                     bg_color=(1, 1, 1, 1), color=THEMES[self.current_theme_key]["accent"])
+        self.btn_lock.bind(on_press=self.lock_all)
+        list_head.add_widget(self.btn_lock)
 
-        # 二级工具栏
-        sub_tools = BoxLayout(spacing=dp(6), size_hint_y=None, height=dp(36))
-        self.btn_semester = ModernButton(text="🎓 学期分摊", font_size=dp(11), bg_color=(0.35, 0.55, 0.80, 1))
-        self.btn_semester.bind(on_press=self.show_semester_calculator)
-        sub_tools.add_widget(self.btn_semester)
+        self.btn_unlock = ModernButton(text="全解", font_size=dp(10), size_hint=(None, 1), width=dp(46),
+                                       bg_color=(1, 1, 1, 1), color=THEMES[self.current_theme_key]["accent"])
+        self.btn_unlock.bind(on_press=self.unlock_all)
+        list_head.add_widget(self.btn_unlock)
 
-        self.btn_social = ModernButton(text="🏛️ 五险一金", font_size=dp(11), bg_color=(0.35, 0.55, 0.80, 1))
-        self.btn_social.bind(on_press=self.show_social_calculator)
-        sub_tools.add_widget(self.btn_social)
+        self.items_card.add_widget(list_head)
 
-        self.btn_custom = ModernButton(text="➕ 加自定义项", font_size=dp(11), bg_color=(0.35, 0.55, 0.80, 1))
-        self.btn_custom.bind(on_press=self.show_add_custom_popup)
-        sub_tools.add_widget(self.btn_custom)
-
-        self.content.add_widget(sub_tools)
-
-        # ---------- 原生 Canvas 可视化图表卡片 ----------
-        self.charts_card = CardLayout()
-        self.charts_widget = FixedChartsWidget()
-        self.charts_card.add_widget(self.charts_widget)
-        self.content.add_widget(self.charts_card)
-
-        # ---------- 卡片 4: 支出明细项管理 ----------
-        self.card4 = CardLayout()
-        c4_top = BoxLayout(size_hint_y=None, height=dp(26))
-        self.c4_head = Label(text="③ 支出分类精算列表", font_size=dp(13), bold=True,
-                             color=THEMES["light"]["accent"], halign='left')
-        self.c4_head.bind(size=self.c4_head.setter('text_size'))
-        c4_top.add_widget(self.c4_head)
-
-        self.btn_lock_all = ModernButton(text="🔒全锁", font_size=dp(10), size_hint=(None, 1), width=dp(52), bg_color=(0.60, 0.68, 0.76, 1))
-        self.btn_lock_all.bind(on_press=self.lock_all)
-        c4_top.add_widget(self.btn_lock_all)
-
-        self.btn_unlock_all = ModernButton(text="🔓全解", font_size=dp(10), size_hint=(None, 1), width=dp(52), bg_color=(0.60, 0.68, 0.76, 1))
-        self.btn_unlock_all.bind(on_press=self.unlock_all)
-        c4_top.add_widget(self.btn_unlock_all)
-
-        self.card4.add_widget(c4_top)
-
-        self.expense_container = BoxLayout(orientation='vertical', spacing=dp(4), size_hint_y=None)
+        self.expense_container = BoxLayout(orientation='vertical', spacing=dp(3), size_hint_y=None)
         self.expense_container.bind(minimum_height=self.expense_container.setter('height'))
-        self.card4.add_widget(self.expense_container)
+        self.items_card.add_widget(self.expense_container)
 
-        self._build_expense_rows()
-        self.content.add_widget(self.card4)
+        self.content.add_widget(self.items_card)
+
+        # ==================== 极简收支对比柱状图 ====================
+        self.chart_card = SoftCard(bg_color=THEMES[self.current_theme_key]["bg_card"], radius=12, padding=dp(10), spacing=dp(4))
+        self.cashflow_chart = MiniCashflowWidget()
+        self.chart_card.add_widget(self.cashflow_chart)
+        self.content.add_widget(self.chart_card)
+
+        # ==================== 底部极简实用工具栏 (分层舒适布局) ====================
+        self.tools_card = SoftCard(bg_color=THEMES[self.current_theme_key]["bg_card"], radius=12, padding=dp(8), spacing=dp(6))
+
+        tools_row1 = BoxLayout(orientation='horizontal', spacing=dp(6), size_hint_y=None, height=dp(34))
+        t = THEMES[self.current_theme_key]
+        self.btn_meal = ModernButton(text="餐饮折算", font_size=dp(11), bg_color=t["btn_tool_bg"], color=t["btn_tool_fg"])
+        self.btn_meal.bind(on_press=self.show_meal_calculator)
+        tools_row1.add_widget(self.btn_meal)
+
+        self.btn_sem = ModernButton(text="学期分摊", font_size=dp(11), bg_color=t["btn_tool_bg"], color=t["btn_tool_fg"])
+        self.btn_sem.bind(on_press=self.show_semester_calculator)
+        tools_row1.add_widget(self.btn_sem)
+
+        self.btn_soc = ModernButton(text="五险一金", font_size=dp(11), bg_color=t["btn_tool_bg"], color=t["btn_tool_fg"])
+        self.btn_soc.bind(on_press=self.show_social_calculator)
+        tools_row1.add_widget(self.btn_soc)
+
+        self.btn_custom = ModernButton(text="加自定义", font_size=dp(11), bg_color=t["btn_tool_bg"], color=t["btn_tool_fg"])
+        self.btn_custom.bind(on_press=self.show_add_custom_popup)
+        tools_row1.add_widget(self.btn_custom)
+        self.tools_card.add_widget(tools_row1)
+
+        tools_row2 = BoxLayout(orientation='horizontal', spacing=dp(8), size_hint_y=None, height=dp(38))
+        self.btn_theme = ModernButton(text=f"切换风格: {t['name']}", font_size=dp(12),
+                                      size_hint=(0.42, 1), bg_color=t["btn_tool_bg"], color=t["btn_tool_fg"])
+        self.btn_theme.bind(on_press=self.cycle_theme)
+        tools_row2.add_widget(self.btn_theme)
+
+        self.btn_report = ModernButton(text="查看财务规划报告", font_size=dp(12), bold=True,
+                                       size_hint=(0.58, 1), bg_color=t["btn_report_bg"], color=t["btn_report_fg"])
+        self.btn_report.bind(on_press=self.show_report_popup)
+        tools_row2.add_widget(self.btn_report)
+        self.tools_card.add_widget(tools_row2)
+
+        self.content.add_widget(self.tools_card)
 
         scroll.add_widget(self.content)
         self.root_layout.add_widget(scroll)
 
-        # 社保高级参数
+        # 默认社保参数
         self.social_mode = "单位代缴"
         self.social_base = 3800.0
         self.tax_deduction = 0.0
 
-        # 初始化数据
-        self.apply_identity_defaults("职场新人（1-3年）")
-        self.refresh_preview()
+        # 从 JSON 文件中自动无缝载入上一次的所有内容
+        self.load_from_saved_profile()
+        self.is_initializing = False
 
         return self.root_layout
 
-    # ==================== 三重主题切换逻辑 ====================
-    def cycle_theme(self, *a):
-        order = ["light", "warm", "dark"]
-        curr_idx = order.index(self.current_theme_key)
-        new_key = order[(curr_idx + 1) % len(order)]
-        self.apply_theme(new_key)
+    def _update_root_bg(self):
+        self.root_bg_rect.pos = self.root_layout.pos
+        self.root_bg_rect.size = self.root_layout.size
 
-    def apply_theme(self, theme_key):
+    def _update_header_bg(self):
+        self.header_bg_rect.pos = self.header.pos
+        self.header_bg_rect.size = self.header.size
+
+    # ==================== JSON 自动保存与自动载入引擎 ====================
+    def load_from_saved_profile(self):
+        prof = self.user_data.get("active_profile", {})
+        self.current_gender = prof.get("gender", "female")
+        target_theme = prof.get("theme", ("pink" if self.current_gender == "female" else "light"))
+        self.active_identity = prof.get("identity", "职场新人（1-3年）")
+        self.btn_identity.text = f"{self.active_identity}  ▼"
+        self.in_income.text = str(prof.get("income", "4200"))
+        if hasattr(self, "in_debt"):
+            self.in_debt.text = str(prof.get("debt", "0"))
+        self.in_target_surplus.text = str(prof.get("target_surplus", "500"))
+        self.social_mode = prof.get("social_mode", "单位代缴")
+        self.social_base = float(prof.get("social_base", 3800))
+        self.tax_deduction = float(prof.get("tax_deduction", 0))
+
+        self.custom_items = []
+        for ci in prof.get("custom_items", []):
+            self.custom_items.append((ci["key"], ci["name"], str(ci["amount"]), 0.01, 0.08, "自定义补充项目"))
+
+        self._build_expense_rows()
+        saved_expenses = prof.get("expenses", {})
+        for it in self.expense_widgets:
+            if it["key"] in saved_expenses:
+                edata = saved_expenses[it["key"]]
+                it["txt"].text = str(edata.get("amount", "0"))
+                it["lock"].set_locked(edata.get("is_locked", False))
+
+        self.apply_theme_by_key(target_theme)
+
+    def auto_save_profile(self):
+        if self.is_initializing:
+            return
+        expenses_dict = {}
+        for it in self.expense_widgets:
+            expenses_dict[it["key"]] = {
+                "name": it["name"],
+                "amount": it["txt"].text.strip() or "0",
+                "is_locked": it["lock"].is_locked
+            }
+
+        cust_list = []
+        for key, name, d_val, lo, hi, tip in self.custom_items:
+            val = d_val
+            for it in self.expense_widgets:
+                if it["key"] == key:
+                    val = it["txt"].text.strip()
+                    break
+            cust_list.append({"key": key, "name": name, "amount": val, "is_locked": False})
+
+        active_prof = {
+            "gender": self.current_gender,
+            "theme": self.current_theme_key,
+            "identity": self.active_identity,
+            "income": self.in_income.text.strip(),
+            "debt": self.in_debt.text.strip() if hasattr(self, "in_debt") else "0",
+            "target_surplus": self.in_target_surplus.text.strip(),
+            "social_mode": self.social_mode,
+            "social_base": self.social_base,
+            "tax_deduction": self.tax_deduction,
+            "expenses": expenses_dict,
+            "custom_items": cust_list
+        }
+        self.user_data["active_profile"] = active_prof
+        storage.save_user_data(self.user_data)
+
+    def on_input_change(self, *a):
+        self.refresh_preview()
+        self.auto_save_profile()
+
+    # ==================== 性别切换逻辑 (女生男生完全解耦定制) ====================
+    def switch_gender(self, gender):
+        if self.current_gender == gender:
+            return
+        self.current_gender = gender
+        target_theme = "pink" if gender == "female" else "light"
+        self.current_theme_key = target_theme
+
+        # 1. 重新构建性别专属的开销细目列表 (男生专属/女生专属)
+        self._build_expense_rows()
+        self.apply_identity_defaults(self.active_identity)
+
+        # 2. 对所有已有组件应用主题样式 (确保新生成的锁按钮与文字彻底换色)
+        self.apply_theme_by_key(target_theme)
+
+        # 3. 重新计算并持久化
+        self.refresh_preview()
+        self.auto_save_profile()
+
+    # ==================== 统一主题应用系统 ====================
+    def apply_theme_by_key(self, theme_key):
         self.current_theme_key = theme_key
         t = THEMES[theme_key]
 
+        # 1. 根底色与顶栏
         self.root_bg_color.rgba = t["bg_root"]
         self.header_bg_color.rgba = t["bg_header"]
-        self.lbl_sub.color = t["text_sub"]
-        self.btn_theme.text = t["name"]
+        self.lbl_app_title.color = t["text_header"]
 
-        self.card1.set_theme_colors(t["bg_card"], t["border_card"])
-        self.card2.set_theme_colors(t["tier_bg"], t["border_card"])
-        self.card3.set_theme_colors(t["bg_card"], t["border_card"])
-        self.charts_card.set_theme_colors(t["bg_card"], t["border_card"])
-        self.card4.set_theme_colors(t["bg_card"], t["border_card"])
+        # 2. 卡片软底
+        self.display_card.set_theme_bg(t["bg_display"])
+        self.ctrl_card.set_theme_bg(t["bg_card"])
+        self.items_card.set_theme_bg(t["bg_card"])
+        self.chart_card.set_theme_bg(t["bg_card"])
+        if hasattr(self, "tools_card"):
+            self.tools_card.set_theme_bg(t["bg_card"])
 
-        self.c1_head.color = t["accent"]
-        self.c3_head.color = t["accent"]
-        self.c4_head.color = t["accent"]
-        self.lbl_tier_tag.color = t["accent"]
-        self.lbl_tier_desc.color = t["text_secondary"]
-        self.lbl_tier_sec.color = t["accent_green"]
+        # 3. 输入框与文字
+        self.lbl_in_title.color = t["text_primary"]
+        self.lbl_target_title.color = t["text_secondary"]
+        self.in_income.foreground_color = t["text_primary"]
+        self.in_income.background_color = t["bg_input"]
+        self.in_target_surplus.foreground_color = t["text_primary"]
+        self.in_target_surplus.background_color = t["bg_input"]
 
-        for lbl in [self.lbl_in_income, self.lbl_in_savings, self.lbl_in_invest, self.lbl_in_target]:
-            lbl.color = t["text_secondary"]
+        if hasattr(self, "lbl_debt_title"):
+            self.lbl_debt_title.color = t["text_secondary"]
+        if hasattr(self, "in_debt"):
+            self.in_debt.foreground_color = t["text_primary"]
+            self.in_debt.background_color = t["bg_input"]
 
-        self.lbl_kpi_row1.color = t["text_primary"]
-        self.lbl_kpi_row2.color = t["accent_green"]
-        self.lbl_kpi_row3.color = t["text_secondary"]
+        # 建议储蓄元素样式
+        if hasattr(self, "lbl_sug_title"):
+            self.lbl_sug_title.color = t["text_secondary"]
+        if hasattr(self, "lbl_sug_desc"):
+            self.lbl_sug_desc.color = t["accent"]
+        if hasattr(self, "btn_apply_sug"):
+            self.btn_apply_sug.set_style(t["btn_plan_bg"], t["btn_plan_fg"])
+        if hasattr(self, "btn_ratio_10"):
+            self.btn_ratio_10.set_style(t["bg_input"], t["text_primary"])
+        if hasattr(self, "btn_ratio_20"):
+            self.btn_ratio_20.set_style(t["bg_input"], t["accent"])
+        if hasattr(self, "btn_ratio_30"):
+            self.btn_ratio_30.set_style(t["bg_input"], t["text_primary"])
 
-        self.btn_plan.set_bg_color(t["accent"])
-        self.btn_report.set_bg_color(t["accent_green"])
-        self.spinner_id.background_color = t["accent"]
+        # 4. 男女胶囊按钮高亮适配 (全主题彻底同步)
+        if theme_key == "warm":
+            inactive_bg = (0.92, 0.88, 0.79, 1.0)
+            inactive_fg = (0.48, 0.39, 0.28, 1.0)
+        elif theme_key == "dark":
+            inactive_bg = (0.18, 0.24, 0.35, 1.0)
+            inactive_fg = (0.60, 0.68, 0.78, 1.0)
+        elif theme_key == "pink":
+            inactive_bg = (1.0, 0.94, 0.96, 1.0)
+            inactive_fg = (0.65, 0.44, 0.52, 1.0)
+        else:
+            inactive_bg = (0.92, 0.95, 1.0, 1.0)
+            inactive_fg = (0.42, 0.50, 0.62, 1.0)
 
-        for txt in [self.in_income, self.in_savings, self.in_invest, self.in_target]:
-            txt.foreground_color = t["text_input"]
-            txt.background_color = t["bg_input"]
+        if self.current_gender == "male":
+            self.btn_male.set_style(t["accent_male"], (1, 1, 1, 1))
+            self.btn_male.bold = True
+            self.btn_female.set_style(inactive_bg, inactive_fg)
+            self.btn_female.bold = False
+        else:
+            self.btn_female.set_style(t["accent_female"], (1, 1, 1, 1))
+            self.btn_female.bold = True
+            self.btn_male.set_style(inactive_bg, inactive_fg)
+            self.btn_male.bold = False
 
+        # 5. 身份按钮与智能精算按钮
+        self.btn_identity.set_style(t["bg_input"], t["text_primary"])
+        self.btn_smart_plan.set_style(t["btn_plan_bg"], t["btn_plan_fg"])
+
+        # 6. 列表标题与全锁/全解微胶囊
+        self.lbl_list_title.color = t["accent"]
+        self.btn_lock.set_style(inactive_bg, t["accent"])
+        self.btn_unlock.set_style(inactive_bg, t["accent"])
+
+        # 7. 底部工具栏与主题切换
+        self.btn_meal.set_style(t["btn_tool_bg"], t["btn_tool_fg"])
+        self.btn_sem.set_style(t["btn_tool_bg"], t["btn_tool_fg"])
+        self.btn_soc.set_style(t["btn_tool_bg"], t["btn_tool_fg"])
+        self.btn_custom.set_style(t["btn_tool_bg"], t["btn_tool_fg"])
+        if hasattr(self, "btn_theme"):
+            self.btn_theme.text = f"切换风格: {t['name']}"
+            self.btn_theme.set_style(t["btn_tool_bg"], t["btn_tool_fg"])
+        self.btn_report.set_style(t["btn_report_bg"], t["btn_report_fg"])
+
+        # 8. 刷新各条目样式
         for it in self.expense_widgets:
-            it["txt"].foreground_color = t["text_input"]
+            it["txt"].foreground_color = t["text_primary"]
             it["txt"].background_color = t["bg_input"]
             it["lbl"].color = t["text_primary"]
             it["pct"].color = t["accent"]
+            it["lock"].refresh_state(t)
 
         self.refresh_preview()
 
+    def cycle_theme(self, *a):
+        keys = ["light", "pink", "warm", "dark"]
+        idx = (keys.index(self.current_theme_key) + 1) % len(keys)
+        self.apply_theme_by_key(keys[idx])
+        self.auto_save_profile()
+
+    # ==================== 现代化身份选择弹窗 ====================
+    def show_identity_picker(self, *a):
+        t = THEMES[self.current_theme_key]
+        content = ModalCard(bg_color=t["bg_card"], radius=16, padding=dp(16), spacing=dp(10))
+
+        lbl_t = Label(text="选择您的当前财务身份", font_size=dp(14), bold=True,
+                      size_hint_y=None, height=dp(28), color=t["accent"], halign='center')
+        content.add_widget(lbl_t)
+
+        popup = Popup(title="", separator_height=0, content=content,
+                      size_hint=(0.86, 0.60), background="", background_color=(0, 0, 0, 0.65))
+
+        for id_name in IDENTITY_PRESETS.keys():
+            is_active = (id_name == self.active_identity)
+            bg = t["accent"] if is_active else t["bg_input"]
+            fg = (1, 1, 1, 1) if is_active else t["text_primary"]
+            btn = ModernButton(text=f"{'● ' if is_active else '○ '}{id_name}",
+                               font_size=dp(12), bold=is_active,
+                               size_hint_y=None, height=dp(38),
+                               bg_color=bg, color=fg)
+            def make_picker(name):
+                def select_and_close(*e):
+                    self.active_identity = name
+                    self.btn_identity.text = f"{name}  ▼"
+                    self.apply_identity_defaults(name)
+                    self.refresh_preview()
+                    self.auto_save_profile()
+                    popup.dismiss()
+                return select_and_close
+            btn.bind(on_press=make_picker(id_name))
+            content.add_widget(btn)
+
+        btn_cancel = ModernButton(text="取消", font_size=dp(12), size_hint_y=None, height=dp(34),
+                                  bg_color=t.get("btn_secondary_bg", (0.85, 0.88, 0.92, 1)),
+                                  color=t.get("btn_secondary_fg", t["text_primary"]))
+        btn_cancel.bind(on_press=popup.dismiss)
+        content.add_widget(btn_cancel)
+
+        popup.open()
+
+    # ==================== 构建全维支出行 (女生版与男生版各自定制独立画像) ====================
     def _build_expense_rows(self):
         self.expense_container.clear_widgets()
         self.expense_widgets = []
         t = THEMES[self.current_theme_key]
 
-        all_items = list(PRESET_EXPENSES) + self.custom_items
-        for key, name, default_amt, lo, hi, tip in all_items:
-            row = BoxLayout(orientation='horizontal', spacing=dp(6), size_hint_y=None, height=dp(34))
-            
-            cb = CheckBox(size_hint_x=None, width=dp(28))
-            row.add_widget(cb)
+        is_female = (self.current_gender == "female")
+        ess_list = FEMALE_ESSENTIAL if is_female else MALE_ESSENTIAL
+        life_list = FEMALE_LIFESTYLE if is_female else MALE_LIFESTYLE
 
-            lbl_name = Label(text=name, font_size=dp(12), color=t["text_primary"],
-                             size_hint_x=None, width=dp(72), halign='left', valign='middle')
-            lbl_name.bind(size=lbl_name.setter('text_size'))
-            row.add_widget(lbl_name)
+        tag_ess_text = "【基础生存刚需】 (三餐、房租、通勤、话费、医疗、生理个护与理发美发)" if is_female else "【基础生存刚需】 (三餐、房租、通勤、话费、医疗与理发修容)"
+        tag_ess = Label(text=tag_ess_text, font_size=dp(11), bold=True,
+                        color=t["text_secondary"], size_hint_y=None, height=dp(20), halign='left')
+        tag_ess.bind(size=tag_ess.setter('text_size'))
+        self.expense_container.add_widget(tag_ess)
 
-            txt_amt = TextInput(text=default_amt, multiline=False, input_filter='float',
-                                font_size=dp(12), size_hint=(1, 1), padding=[dp(6), dp(6)],
-                                foreground_color=t["text_input"], background_color=t["bg_input"])
-            txt_amt.bind(text=self.refresh_preview)
-            row.add_widget(txt_amt)
+        for key, name, lo, hi, tip in ess_list:
+            self._add_single_row(key, name, "0", lo, hi, tip)
 
-            lbl_pct = Label(text="0%", font_size=dp(11), color=t["accent"],
-                            size_hint_x=None, width=dp(45))
-            row.add_widget(lbl_pct)
+        tag_life_text = "【女生专属·质感生活画像】 (护肤美妆、穿搭鞋包、网购百货、茶饮甜品、聚会与旅行)" if is_female else "【男生专属·兴趣爱好画像】 (数码科技、游戏电竞、运动健身、聚会社交、鞋服与户外)"
+        tag_flex = Label(text=tag_life_text, font_size=dp(11), bold=True,
+                         color=t["accent_female"] if is_female else t["accent_male"],
+                         size_hint_y=None, height=dp(24), halign='left')
+        tag_flex.bind(size=tag_flex.setter('text_size'))
+        self.expense_container.add_widget(tag_flex)
 
-            self.expense_container.add_widget(row)
-            self.expense_widgets.append({
-                "key": key, "name": name, "lock": cb, "txt": txt_amt,
-                "lbl": lbl_name, "pct": lbl_pct, "lo": lo, "hi": hi, "tip": tip
-            })
+        for key, name, lo, hi, tip in life_list:
+            self._add_single_row(key, name, "0", lo, hi, tip)
+
+        if self.custom_items:
+            tag_cust = Label(text="【自定义补充项】", font_size=dp(11), bold=True,
+                             color=t["text_secondary"], size_hint_y=None, height=dp(20), halign='left')
+            tag_cust.bind(size=tag_cust.setter('text_size'))
+            self.expense_container.add_widget(tag_cust)
+            for key, name, default_amt, lo, hi, tip in self.custom_items:
+                self._add_single_row(key, name, default_amt, lo, hi, tip)
+
+    def _add_single_row(self, key, label_name, default_amt, lo, hi, tip):
+        t = THEMES[self.current_theme_key]
+        row = BoxLayout(orientation='horizontal', spacing=dp(6), size_hint_y=None, height=dp(32))
+
+        btn_lock_badge = LockBadgeButton()
+        btn_lock_badge.refresh_state(t)
+        row.add_widget(btn_lock_badge)
+
+        lbl_name = Label(text=label_name, font_size=dp(12), color=t["text_primary"],
+                         size_hint_x=None, width=dp(80), halign='left', valign='middle')
+        lbl_name.bind(size=lbl_name.setter('text_size'))
+        row.add_widget(lbl_name)
+
+        lbl_pct = Label(text="0%", font_size=dp(11), color=t["accent"],
+                        size_hint_x=None, width=dp(40), halign='right')
+        row.add_widget(lbl_pct)
+
+        txt_amt = TextInput(text=default_amt, multiline=False, input_filter='float',
+                            font_size=dp(12), size_hint=(1, 1), padding=[dp(8), dp(6)],
+                            foreground_color=t["text_primary"], background_color=t["bg_input"])
+        txt_amt.bind(text=self.on_input_change)
+        row.add_widget(txt_amt)
+
+        self.expense_container.add_widget(row)
+        self.expense_widgets.append({
+            "key": key, "name": label_name, "lock": btn_lock_badge, "txt": txt_amt,
+            "lbl": lbl_name, "pct": lbl_pct, "lo": lo, "hi": hi, "tip": tip
+        })
 
     def lock_all(self, *a):
         for it in self.expense_widgets:
-            it["lock"].active = True
+            it["lock"].set_locked(True)
+        self.refresh_preview()
+        self.auto_save_profile()
 
     def unlock_all(self, *a):
         for it in self.expense_widgets:
-            it["lock"].active = False
+            it["lock"].set_locked(False)
+        self.refresh_preview()
+        self.auto_save_profile()
 
-    # ==================== 核心计算逻辑 ====================
+    # ==================== 核心计算与目标存储匹配 ====================
     def _num(self, txt_widget):
         try:
             return float(txt_widget.text.strip() or 0)
         except Exception:
             return 0.0
-
-    def on_identity_change(self, spinner, text):
-        self.apply_identity_defaults(text)
-        self.refresh_preview()
 
     def apply_identity_defaults(self, ident_name):
         if ident_name not in IDENTITY_PRESETS:
@@ -875,534 +1261,788 @@ class FinancePlannerApp(App):
         is_student = (ident_name == "全日制大学生")
 
         self.in_income.text = p["income"]
-        self.in_savings.text = p["savings"]
-        self.in_invest.text = p["invest"]
-        self.in_target.text = p["target"]
-        self.social_mode = p.get("social_mode", "单位代缴")
-        self.social_base = float(p.get("social_base", 3800))
+        self.in_target_surplus.text = p.get("target_surplus", "200" if is_student else "500")
+        self.social_mode = p.get("social_mode", "无社保" if is_student else "单位代缴")
+        self.social_base = float(p.get("social_base", 0 if is_student else 3800))
+
+        defaults_dict = p.get("female_defaults" if self.current_gender == "female" else "male_defaults", {})
 
         for item in self.expense_widgets:
-            default_val = p["defaults"].get(item["key"], "0")
+            default_val = defaults_dict.get(item["key"], "50")
             item["txt"].text = default_val
 
             if is_student and item["key"] in STUDENT_LOCKED_KEYS:
-                item["lock"].active = True
+                item["lock"].set_locked(True)
                 item["txt"].text = "0"
             elif not is_student:
-                item["lock"].active = False
+                item["lock"].set_locked(False)
 
     def compute(self):
         income = self._num(self.in_income)
-        ident = self.spinner_id.text
-        is_student = (ident == "全日制大学生")
+        mode = self.social_mode
+        base = self.social_base if self.social_base > 0 else income
+
+        rates = SOCIAL_RATES.get(mode, SOCIAL_RATES["无社保"])
+        social_p = base * (rates["pension_p"] + rates["medical_p"] + rates["unemp_p"] + rates["fund_p"])
         
-        if is_student or self.social_mode == "无社保":
-            social_p = 0.0
+        if mode == "单位代缴":
+            social_e = base * (rates["pension_e"] + rates["medical_e"] + rates["unemp_e"] +
+                               rates["injury_e"] + rates["birth_e"] + rates["fund_e"])
+        else:
             social_e = 0.0
-            tax = 0.0
-        elif self.social_mode == "个人全额自缴":
-            social_p = self.social_base * 0.28
-            social_e = 0.0
-            tax = 0.0
-        else: # 单位代缴
-            social_p = self.social_base * 0.175
-            social_e = self.social_base * 0.283
-            taxable = max(0.0, income - social_p - 5000 - self.tax_deduction)
+
+        taxable = income - social_p - 5000.0 - self.tax_deduction
+        tax = compute_tax(taxable) if mode != "无社保" and taxable > 0 else 0.0
+        if mode == "无社保":
             tax = compute_tax(taxable)
 
         takehome = max(0.0, income - social_p - tax)
+        debt = self._num(self.in_debt) if hasattr(self, "in_debt") else 0.0
         expenses = {it["key"]: self._num(it["txt"]) for it in self.expense_widgets}
         total_exp = sum(expenses.values())
-        surplus = takehome - total_exp
-        savings_target = self._num(self.in_target)
-        sr = (surplus / takehome) if takehome > 0 else 0.0
+        
+        # 核心算式：结余 = 实发到手 - 月度还债 - 生活开销
+        surplus = takehome - debt - total_exp
+        surplus_rate = (surplus / takehome) if takehome > 0 else 0.0
+        debt_rate = (debt / takehome) if takehome > 0 else 0.0
 
-        essential = expenses.get("housing", 0) + expenses.get("food", 0)
+        essential_keys = {"housing", "food", "transport", "phone", "health", "period", "hair", "groom"}
+        essential = sum(expenses.get(k, 0) for k in essential_keys)
         flexible = total_exp - essential
-        ess_pct = (essential / takehome) if takehome > 0 else 0.0
+
+        target_surplus = self._num(self.in_target_surplus)
 
         return {
-            "income": income, "takehome": takehome, "social_p": social_p, "social_e": social_e,
+            "income": income, "debt": debt, "debt_rate": debt_rate,
+            "takehome": takehome, "social_p": social_p, "social_e": social_e,
             "tax": tax, "expenses": expenses, "total_exp": total_exp, "surplus": surplus,
-            "savings_target": savings_target, "savings_rate": sr,
-            "savings": self._num(self.in_savings), "invest": self._num(self.in_invest),
-            "essential": essential, "flexible": flexible, "ess_pct": ess_pct
+            "surplus_rate": surplus_rate, "essential": essential, "flexible": flexible,
+            "target_surplus": target_surplus
         }
 
     def refresh_preview(self, *args):
         d = self.compute()
         takehome = d["takehome"]
-        tier = get_tier_info(takehome)
+        debt = d["debt"]
+        debt_rate = d["debt_rate"]
+        total_exp = d["total_exp"]
+        surplus = d["surplus"]
+        sr = d["surplus_rate"]
+        target = d["target_surplus"]
+        t = THEMES[self.current_theme_key]
 
-        self.lbl_tier_tag.text = tier["tag"]
-        self.lbl_tier_desc.text = tier["desc"]
-        self.lbl_tier_sec.text = f"{tier['security_level']} ｜ 推荐储蓄: {tier['target_savings_rate']*100:.0f}%"
+        self.lbl_disp_income.text = f"到手 ￥{fmt(takehome)}"
+        if debt > 0:
+            self.lbl_disp_debt.text = f"还款 ￥{fmt(debt)}"
+            self.lbl_disp_debt.size_hint_x = None
+            self.lbl_disp_debt.width = dp(76)
+            self.lbl_disp_minus_debt.text = "-"
+            self.lbl_disp_minus_debt.size_hint_x = None
+            self.lbl_disp_minus_debt.width = dp(10)
+        else:
+            self.lbl_disp_debt.text = ""
+            self.lbl_disp_debt.size_hint_x = None
+            self.lbl_disp_debt.width = 0
+            self.lbl_disp_minus_debt.text = ""
+            self.lbl_disp_minus_debt.size_hint_x = None
+            self.lbl_disp_minus_debt.width = 0
 
-        self.lbl_kpi_row1.text = f"到手实拿: {fmt(takehome)} 元 ｜ 预算支出: {fmt(d['total_exp'])} 元"
-        self.lbl_kpi_row2.text = f"每月净结余: {fmt(d['surplus'])} 元 ｜ 储蓄率: {d['savings_rate']*100:.1f}%"
-        self.lbl_kpi_row3.text = f"住房+餐饮刚需: {fmt(d['essential'])} 元（占支配比 {d['ess_pct']*100:.1f}%）"
+        self.lbl_disp_exp.text = f"支出 ￥{fmt(total_exp)}"
+        
+        if surplus >= 0:
+            self.lbl_disp_surplus.text = f"结余 ￥{fmt(surplus)}"
+            self.lbl_disp_surplus.color = t["accent_surplus"]
+            if debt > 0:
+                sub_eval = f"偿债率 {debt_rate*100:.0f}% | 支出占 {total_exp/takehome*100:.0f}% | 结余率 {sr*100:.0f}%" if takehome > 0 else "请输入有效月薪"
+            else:
+                sub_eval = f"支出占 {total_exp/takehome*100:.0f}% | 自由结余率 {sr*100:.0f}%" if takehome > 0 else "请输入有效月薪"
+        else:
+            self.lbl_disp_surplus.text = f"超支 -￥{fmt(-surplus)}"
+            self.lbl_disp_surplus.color = t["accent_red"]
+            sub_eval = f"注意：预算超支赤字 ￥{fmt(-surplus)}"
+
+        self.lbl_disp_sub.text = sub_eval
+
+        # 动态负债状态提示 (温和柔性，不生硬)
+        if hasattr(self, "lbl_debt_status"):
+            if debt <= 0:
+                self.lbl_debt_status.text = "零负债 无月供压力"
+                self.lbl_debt_status.color = t["accent_surplus"]
+            elif takehome <= 0:
+                self.lbl_debt_status.text = f"月还款 ￥{fmt(debt)}"
+                self.lbl_debt_status.color = t["accent_red"]
+            elif debt_rate <= 0.20:
+                self.lbl_debt_status.text = f"偿债率 {debt_rate*100:.0f}%·负债压力轻微"
+                self.lbl_debt_status.color = t["accent_surplus"]
+            elif debt_rate <= 0.40:
+                self.lbl_debt_status.text = f"偿债率 {debt_rate*100:.0f}%·月供适中可控"
+                self.lbl_debt_status.color = t["accent"]
+            elif debt_rate <= 0.60:
+                self.lbl_debt_status.text = f"偿债率 {debt_rate*100:.0f}%·负债偏重 建议优先还款"
+                self.lbl_debt_status.color = t["accent_red"]
+            else:
+                self.lbl_debt_status.text = f"偿债率 {debt_rate*100:.0f}%·高负债预警 需严控开支"
+                self.lbl_debt_status.color = t["accent_red"]
+
+        if target > 0:
+            if surplus >= target:
+                self.lbl_target_status.text = f"达成目标！达标率 {surplus/target*100:.0f}%"
+                self.lbl_target_status.color = t["accent_surplus"]
+            else:
+                gap = target - surplus
+                self.lbl_target_status.text = f"还差 ￥{fmt(gap)} 达成储蓄目标"
+                self.lbl_target_status.color = t["accent_red"]
+        else:
+            self.lbl_target_status.text = "自由结余，无硬性储蓄指标"
+            self.lbl_target_status.color = t["text_secondary"]
 
         for it in self.expense_widgets:
             amt = self._num(it["txt"])
             pct = (amt / takehome * 100) if takehome > 0 else 0
-            it["pct"].text = f"{pct:.1f}%"
+            it["pct"].text = f"{pct:.0f}%"
 
-        # 动态触发图表更新
-        if hasattr(self, "charts_widget"):
-            chart_exp = {it["name"]: self._num(it["txt"]) for it in self.expense_widgets}
-            t = THEMES[self.current_theme_key]
-            self.charts_widget.update_data({
-                "takehome": takehome, "essential": d["essential"], "flexible": d["flexible"],
-                "surplus": d["surplus"], "target": d["savings_target"], "expenses": chart_exp
-            }, t)
+        # 实时测算建议储蓄目标 (基于扣除欠款还款后的净可支配额)
+        disposable = max(0.0, takehome - debt)
+        sug_20 = int(max(0.0, round(disposable * 0.20 / 10) * 10)) if disposable > 0 else 0
+        sug_10 = int(max(0.0, round(disposable * 0.10 / 10) * 10)) if disposable > 0 else 0
+        sug_30 = int(max(0.0, round(disposable * 0.30 / 10) * 10)) if disposable > 0 else 0
+        if hasattr(self, "lbl_sug_desc"):
+            self.lbl_sug_desc.text = f"￥{fmt(sug_20)} (黄金20%)"
+        if hasattr(self, "btn_ratio_10"):
+            self.btn_ratio_10.text = f"极简 10%: ￥{fmt(sug_10)}"
+        if hasattr(self, "btn_ratio_20"):
+            self.btn_ratio_20.text = f"黄金 20%: ￥{fmt(sug_20)}"
+        if hasattr(self, "btn_ratio_30"):
+            self.btn_ratio_30.text = f"进阶 30%: ￥{fmt(sug_30)}"
 
+        if hasattr(self, "cashflow_chart"):
+            self.cashflow_chart.update_data(takehome, d["essential"], d["flexible"], surplus, t)
+
+    def apply_suggested_target(self, *a):
+        d = self.compute()
+        disposable = max(0.0, d["takehome"] - d["debt"])
+        sug_20 = int(max(0.0, round(disposable * 0.20 / 10) * 10)) if disposable > 0 else 0
+        self.in_target_surplus.text = str(sug_20)
+        self.do_smart_plan()
+        self.refresh_preview()
+        self.auto_save_profile()
+
+    def apply_ratio_target(self, ratio):
+        d = self.compute()
+        disposable = max(0.0, d["takehome"] - d["debt"])
+        sug_val = int(max(0.0, round(disposable * ratio / 10) * 10)) if disposable > 0 else 0
+        self.in_target_surplus.text = str(sug_val)
+        self.do_smart_plan()
+        self.refresh_preview()
+        self.auto_save_profile()
+
+    # ==================== 国际文献经学算法 (锁定项动态重平衡 + 恩格尔阶梯消费弹性) ====================
     def do_smart_plan(self, *args):
         d = self.compute()
         takehome = d["takehome"]
+        debt = d["debt"]
         if takehome <= 0:
             return
 
-        ident = self.spinner_id.text
-        is_student = (ident == "全日制大学生")
-        tier = get_tier_info(takehome)
-        allowed_keys = tier["student_allowed"] if is_student else tier["normal_allowed"]
-
-        rec_target = round(takehome * tier["target_savings_rate"], -1)
-        curr_target = self._num(self.in_target)
-        if curr_target <= 0 or (curr_target < rec_target * 0.5):
-            self.in_target.text = f"{rec_target:.0f}"
-            curr_target = rec_target
-
-        for it in self.expense_widgets:
-            if is_student and it["key"] in STUDENT_LOCKED_KEYS:
-                it["lock"].active = True
-                it["txt"].text = "0"
-            if allowed_keys is not None and it["key"] not in allowed_keys and self._num(it["txt"]) == 0:
-                it["lock"].active = True
-                it["txt"].text = "0"
-
-        locked_amt = 0.0
-        unlocked = []
-        for it in self.expense_widgets:
-            if it["lock"].active:
-                locked_amt += self._num(it["txt"])
-            else:
-                unlocked.append(it)
-
-        available = takehome - curr_target - locked_amt
-        if available <= 0 or not unlocked:
-            self.refresh_preview()
+        unlocked_items = [it for it in self.expense_widgets if not it["lock"].is_locked]
+        if not unlocked_items:
             return
 
-        if takehome <= 3000:
-            if is_student:
-                w_map = {"food": 0.65, "transport": 0.08, "phone": 0.05, "study": 0.12, "other": 0.10}
-            else:
-                w_map = {"housing": 0.42, "food": 0.42, "transport": 0.06, "phone": 0.03, "other": 0.07}
-        elif takehome <= 5000:
-            w_map = {"housing": 0.35, "food": 0.33, "transport": 0.06, "phone": 0.03,
-                     "study": 0.06, "fun": 0.05, "shopping": 0.06, "health": 0.03, "drink": 0.02, "other": 0.01}
-            if is_student:
-                w_map["housing"] = 0.0
-                w_map["food"] = 0.52
-        elif takehome <= 8000:
-            w_map = {"housing": 0.30, "food": 0.25, "transport": 0.05, "phone": 0.02,
-                     "study": 0.05, "fun": 0.07, "shopping": 0.06, "beauty": 0.04, "insurance": 0.04,
-                     "drink": 0.02, "health": 0.03, "parents": 0.04, "other": 0.03}
-        else:
-            w_map = {"housing": 0.24, "food": 0.18, "transport": 0.04, "phone": 0.01,
-                     "study": 0.04, "fun": 0.07, "shopping": 0.06, "beauty": 0.04,
-                     "insurance": 0.05, "parents": 0.06, "drink": 0.02, "travel": 0.05, "other": 0.04}
+        locked_sum = sum(self._num(it["txt"]) for it in self.expense_widgets if it["lock"].is_locked)
+        # 必须先保障还债，剩余部分才是可用于生活消费的资金池
+        disposable = max(0.0, takehome - debt)
+        available = max(0.0, disposable - locked_sum)
 
-        weights = {it["key"]: w_map.get(it["key"], 0.02) for it in unlocked}
-        sum_w = sum(weights.values()) or 1.0
-        for it in unlocked:
-            val = available * (weights.get(it["key"], 0.02) / sum_w)
-            it["txt"].text = f"{val:.0f}"
+        ident = self.active_identity
+        is_student = (ident == "全日制大学生")
+        target_save = d["target_surplus"]
+
+        if target_save > 0 and target_save < available:
+            target_spend = available - target_save
+        elif is_student:
+            target_spend = available * 0.95
+        elif disposable <= 5000:
+            target_spend = available * 0.86
+        elif disposable <= 10000:
+            target_spend = available * 0.78
+        else:
+            target_spend = available * 0.68
+
+        if self.current_gender == "female":
+            base_weights = {
+                "food": 0.22, "housing": 0.20, "transport": 0.04, "phone": 0.02, "health": 0.03,
+                "period": 0.03, "hair": 0.03,
+                "beauty": 0.09, "clothes": 0.09, "shop": 0.08, "drink": 0.04,
+                "fun": 0.04, "travel": 0.05, "pet": 0.02, "digital": 0.02,
+                "study": 0.04, "other": 0.02
+            }
+        else:
+            base_weights = {
+                "food": 0.23, "housing": 0.20, "transport": 0.04, "phone": 0.02, "health": 0.03,
+                "groom": 0.03,
+                "digital": 0.08, "game": 0.06, "sport": 0.06, "fun": 0.06,
+                "clothes": 0.06, "shop": 0.05, "travel": 0.05, "pet": 0.02,
+                "study": 0.04, "other": 0.02
+            }
+
+        housing_locked_val = None
+        for it in self.expense_widgets:
+            if it["key"] == "housing" and it["lock"].is_locked:
+                housing_locked_val = self._num(it["txt"])
+                break
+
+        weights = {}
+        for it in unlocked_items:
+            k = it["key"]
+            w = base_weights.get(k, 0.04)
+
+            if takehome >= 8000:
+                if k in ("travel", "shop", "pet", "study", "digital", "beauty", "clothes", "game"):
+                    w *= 1.35
+                elif k in ("food", "phone"):
+                    w *= 0.85
+
+            if housing_locked_val is not None and housing_locked_val == 0:
+                if k in ("shop", "travel", "study", "pet", "beauty", "game"):
+                    w *= 1.40
+
+            weights[k] = max(0.005, w)
+
+        total_weight = sum(weights.values())
+        if total_weight <= 0:
+            return
+
+        for it in unlocked_items:
+            k = it["key"]
+            alloc = target_spend * (weights[k] / total_weight)
+            final_alloc = max(0, int(round(alloc / 10.0) * 10))
+            it["txt"].text = str(final_alloc)
 
         self.refresh_preview()
+        self.auto_save_profile()
 
-    # ==================== 专项工具弹窗 (适配主题与字体) ====================
+    # ==================== 场景化餐饮与聚餐智能精算器 (支持不吃早餐、聚餐规划等) ====================
     def show_meal_calculator(self, *a):
         t = THEMES[self.current_theme_key]
-        box = CardLayout(bg_color=t["bg_card"], border_color=t["border_card"], radius=14, auto_height=False)
-        box.add_widget(DynamicLabel(text="🍚 餐饮一日三餐细分精算器 (自动按30天折算)", font_size=dp(13), bold=True, color=t["accent"]))
+        content = ModalCard(bg_color=t["bg_card"], radius=16, padding=dp(16), spacing=dp(8))
 
-        g = GridLayout(cols=2, spacing=dp(6), size_hint_y=None)
-        g.bind(minimum_height=g.setter('height'))
+        lbl_title = Label(text="场景化餐饮与聚餐智能精算器", font_size=dp(14), bold=True,
+                          size_hint_y=None, height=dp(26), color=t["accent"], halign='center')
+        content.add_widget(lbl_title)
 
-        fields = [
-            ("早餐(日均元):", "6"),
-            ("午餐(日均元):", "15"),
-            ("晚餐(日均元):", "15"),
-            ("加餐饮品(日均元):", "0"),
-            ("周末聚餐(每周元):", "50"),
-        ]
+        # 1. 快捷场景预设栏 (包含不吃早餐等年轻族群真实画像)
+        lbl_pre_tip = Label(text="快捷场景一键填入：", font_size=dp(10), color=t["text_secondary"],
+                            size_hint_y=None, height=dp(18), halign='left')
+        lbl_pre_tip.bind(size=lbl_pre_tip.setter('text_size'))
+        content.add_widget(lbl_pre_tip)
+
+        pre_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(28), spacing=dp(4))
+        content.add_widget(pre_box)
+
+        # 滚动区域放置细分项目
+        sv = ScrollView(size_hint=(1, 1), do_scroll_x=False)
+        form_box = BoxLayout(orientation='vertical', size_hint_y=None, spacing=dp(6))
+        form_box.bind(minimum_height=form_box.setter('height'))
+
         inputs = {}
-        for label_text, def_val in fields:
-            g.add_widget(Label(text=label_text, font_size=dp(12), color=t["text_secondary"], size_hint_y=None, height=dp(30)))
-            ti = TextInput(text=def_val, multiline=False, input_filter='float', font_size=dp(12), size_hint_y=None, height=dp(32),
-                           foreground_color=t["text_input"], background_color=t["bg_input"])
-            inputs[label_text] = ti
-            g.add_widget(ti)
+        def add_form_row(k, title, default_val, placeholder):
+            row = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(32), spacing=dp(6))
+            l = Label(text=title, font_size=dp(11), color=t["text_primary"], size_hint_x=0.62, halign='left')
+            l.bind(size=l.setter('text_size'))
+            ti = TextInput(text=default_val, multiline=False, input_filter='float', font_size=dp(11),
+                           size_hint_x=0.38, padding=[dp(6), dp(6)],
+                           foreground_color=t["text_primary"], background_color=t["bg_input"])
+            row.add_widget(l)
+            row.add_widget(ti)
+            form_box.add_widget(row)
+            inputs[k] = ti
 
-        box.add_widget(g)
-        lbl_res = DynamicLabel(text="月度折算总餐饮: 1,280 元", color=t["accent_green"], bold=True, font_size=dp(13))
-        box.add_widget(lbl_res)
+        # 早餐规划 (支持不吃早餐设为0)
+        lbl_sec1 = Label(text="【早餐规划】(不吃早饭设为0天或0元)", font_size=dp(10), bold=True,
+                         size_hint_y=None, height=dp(18), color=t["accent"], halign='left')
+        lbl_sec1.bind(size=lbl_sec1.setter('text_size'))
+        form_box.add_widget(lbl_sec1)
+        add_form_row("b_cost", "早餐单价 (元/顿):", "8", "8")
+        add_form_row("b_days", "每月吃早餐天数 (天/月):", "22", "22")
+
+        # 工作日午餐与晚饭
+        lbl_sec2 = Label(text="【日常工作餐与晚餐】", font_size=dp(10), bold=True,
+                         size_hint_y=None, height=dp(18), color=t["accent"], halign='left')
+        lbl_sec2.bind(size=lbl_sec2.setter('text_size'))
+        form_box.add_widget(lbl_sec2)
+        add_form_row("lunch", "工作日午餐 (日均元):", "20", "20")
+        add_form_row("dinner", "日常晚饭 (日均元):", "18", "18")
+
+        # 外出社交大餐与聚会 (用户核心关切)
+        lbl_sec3 = Label(text="【外出社交大餐与聚会】", font_size=dp(10), bold=True,
+                         size_hint_y=None, height=dp(18), color=t["accent"], halign='left')
+        lbl_sec3.bind(size=lbl_sec3.setter('text_size'))
+        form_box.add_widget(lbl_sec3)
+        add_form_row("gather_count", "每月聚餐次数 (次/月):", "2", "2")
+        add_form_row("gather_avg", "聚餐单次人均 (元/次):", "120", "120")
+
+        # 下午茶咖啡与夜宵
+        lbl_sec4 = Label(text="【下午茶咖啡与夜宵】", font_size=dp(10), bold=True,
+                         size_hint_y=None, height=dp(18), color=t["accent"], halign='left')
+        lbl_sec4.bind(size=lbl_sec4.setter('text_size'))
+        form_box.add_widget(lbl_sec4)
+        add_form_row("tea_snack", "月度茶饮夜宵预算 (元/月):", "80", "80")
+
+        sv.add_widget(form_box)
+        content.add_widget(sv)
+
+        # 实时分类明细与总金额展示
+        lbl_detail = Label(text="日常三餐: ￥0  |  社交聚餐: ￥0  |  茶饮: ￥0", font_size=dp(10),
+                           color=t["text_secondary"], size_hint_y=None, height=dp(18), halign='center')
+        content.add_widget(lbl_detail)
+
+        lbl_total = Label(text="月度折算餐饮总额: ￥0", font_size=dp(13), bold=True,
+                          size_hint_y=None, height=dp(26), color=t["accent_surplus"], halign='center')
+        content.add_widget(lbl_total)
 
         def calc_meal(*e):
-            b = float(inputs["早餐(日均元):"].text or 0)
-            l = float(inputs["午餐(日均元):"].text or 0)
-            d = float(inputs["晚餐(日均元):"].text or 0)
-            snack = float(inputs["加餐饮品(日均元):"].text or 0)
-            wk = float(inputs["周末聚餐(每周元):"].text or 0)
-            tot = (b + l + d + snack) * 30 + (wk * 4.3)
-            lbl_res.text = f"月度折算总餐饮: {fmt(tot)} 元"
-            return tot
+            try:
+                b_c = float(inputs["b_cost"].text or 0)
+                b_d = float(inputs["b_days"].text or 0)
+                b_tot = b_c * b_d
+
+                l_c = float(inputs["lunch"].text or 0)
+                d_c = float(inputs["dinner"].text or 0)
+                # 按照 30 天计算常态午晚饭
+                ld_tot = (l_c + d_c) * 30
+
+                g_cnt = float(inputs["gather_count"].text or 0)
+                g_avg = float(inputs["gather_avg"].text or 0)
+                gather_tot = g_cnt * g_avg
+
+                tea_tot = float(inputs["tea_snack"].text or 0)
+
+                m_tot = b_tot + ld_tot + gather_tot + tea_tot
+                lbl_detail.text = f"日常三餐: ￥{fmt(b_tot + ld_tot)} | 聚餐({fmt(g_cnt)}次): ￥{fmt(gather_tot)} | 茶饮夜宵: ￥{fmt(tea_tot)}"
+                lbl_total.text = f"月度折算餐饮总额: ￥{fmt(m_tot)}"
+                return m_tot
+            except Exception:
+                return 0.0
 
         for ti in inputs.values():
             ti.bind(text=calc_meal)
 
-        btn_bar = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(8))
-        btn_apply = ModernButton(text="✅ 同步填入月度餐饮", font_size=dp(12), bg_color=t["accent"])
-        btn_cancel = ModernButton(text="关闭", font_size=dp(12), bg_color=(0.55, 0.60, 0.68, 1))
-        popup = Popup(title="", separator_height=0, content=box, size_hint=(0.92, 0.65), background="", background_color=(0, 0, 0, 0.65))
+        # 4 个场景快捷按钮动作
+        def set_preset_vals(bc, bd, lc, dc, gc, ga, ts):
+            inputs["b_cost"].text = str(bc)
+            inputs["b_days"].text = str(bd)
+            inputs["lunch"].text = str(lc)
+            inputs["dinner"].text = str(dc)
+            inputs["gather_count"].text = str(gc)
+            inputs["gather_avg"].text = str(ga)
+            inputs["tea_snack"].text = str(ts)
+            calc_meal()
+
+        p_defs = [
+            ("不吃早餐/打工", lambda *a: set_preset_vals(0, 0, 22, 18, 2, 120, 80)),
+            ("节俭下厨",     lambda *a: set_preset_vals(5, 22, 15, 12, 1, 100, 30)),
+            ("聚餐探店",     lambda *a: set_preset_vals(8, 30, 25, 20, 4, 150, 150)),
+            ("学生食堂",     lambda *a: set_preset_vals(5, 30, 12, 12, 2, 80, 40)),
+        ]
+        for p_title, p_func in p_defs:
+            pb = ModernButton(text=p_title, font_size=dp(9), size_hint=(1, 1),
+                              bg_color=t["bg_input"], color=t["text_primary"])
+            pb.bind(on_press=p_func)
+            pre_box.add_widget(pb)
+
+        calc_meal()
+
+        btn_bar = BoxLayout(size_hint_y=None, height=dp(36), spacing=dp(10))
+        btn_apply = ModernButton(text="同步填入餐饮开销", font_size=dp(12), bold=True,
+                                 bg_color=t["btn_plan_bg"], color=t["btn_plan_fg"])
+        btn_close = ModernButton(text="关闭", font_size=dp(12),
+                                 bg_color=t.get("btn_secondary_bg", (0.85, 0.88, 0.92, 1)),
+                                 color=t.get("btn_secondary_fg", t["text_primary"]))
+
+        popup = Popup(title="", separator_height=0, content=content,
+                      size_hint=(0.92, 0.88), background="", background_color=(0, 0, 0, 0.65))
 
         def apply_and_close(*e):
             val = calc_meal()
             for it in self.expense_widgets:
                 if it["key"] == "food":
-                    it["txt"].text = f"{val:.0f}"
+                    it["txt"].text = str(int(round(val)))
                     break
             self.refresh_preview()
+            self.auto_save_profile()
             popup.dismiss()
 
         btn_apply.bind(on_press=apply_and_close)
-        btn_cancel.bind(on_press=popup.dismiss)
+        btn_close.bind(on_press=popup.dismiss)
         btn_bar.add_widget(btn_apply)
-        btn_bar.add_widget(btn_cancel)
-        box.add_widget(btn_bar)
+        btn_bar.add_widget(btn_close)
+        content.add_widget(btn_bar)
+
         popup.open()
 
     def show_semester_calculator(self, *a):
         t = THEMES[self.current_theme_key]
-        box = CardLayout(bg_color=t["bg_card"], border_color=t["border_card"], radius=14, auto_height=False)
-        box.add_widget(DynamicLabel(text="🎓 学期大额费用平摊器 (按月折算到固定开销)", font_size=dp(13), bold=True, color=t["accent"]))
+        content = ModalCard(bg_color=t["bg_card"], radius=16, padding=dp(16), spacing=dp(8))
 
-        g = GridLayout(cols=2, spacing=dp(6), size_hint_y=None)
-        g.bind(minimum_height=g.setter('height'))
+        lbl_title = Label(text="大学学期平摊精算 (月度折算)", font_size=dp(14), bold=True,
+                          size_hint_y=None, height=dp(28), color=t["accent"], halign='center')
+        content.add_widget(lbl_title)
 
-        fields = [
-            ("学年学费(元):", "5000"),
-            ("学年住宿费(元):", "1200"),
-            ("寒暑假往返车票(元):", "600"),
-            ("教材资料费(元):", "400"),
-            ("折算周期(月):", "10"),
-        ]
         inputs = {}
-        for label_text, def_val in fields:
-            g.add_widget(Label(text=label_text, font_size=dp(12), color=t["text_secondary"], size_hint_y=None, height=dp(30)))
-            ti = TextInput(text=def_val, multiline=False, input_filter='float', font_size=dp(12), size_hint_y=None, height=dp(32),
-                           foreground_color=t["text_input"], background_color=t["bg_input"])
-            inputs[label_text] = ti
-            g.add_widget(ti)
+        fields = [
+            ("tuition", "学期总学杂费 (元):", "5000"),
+            ("months",  "学期预计月数 (月):", "5"),
+            ("support", "每月家庭资助 (元):", "1800"),
+        ]
 
-        box.add_widget(g)
-        lbl_res = DynamicLabel(text="每月需分摊准备: 720 元/月", color=t["accent_green"], bold=True, font_size=dp(13))
-        box.add_widget(lbl_res)
+        for k, name, d_val in fields:
+            row = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(32), spacing=dp(6))
+            l = Label(text=name, font_size=dp(12), color=t["text_primary"], size_hint_x=0.6, halign='left')
+            l.bind(size=l.setter('text_size'))
+            ti = TextInput(text=d_val, multiline=False, input_filter='float', font_size=dp(12),
+                           size_hint_x=0.4, foreground_color=t["text_primary"], background_color=t["bg_input"])
+            row.add_widget(l)
+            row.add_widget(ti)
+            content.add_widget(row)
+            inputs[k] = ti
+
+        lbl_result = Label(text="每月平摊预算: ￥0", font_size=dp(13), bold=True,
+                           size_hint_y=None, height=dp(28), color=t["accent_surplus"], halign='center')
+        content.add_widget(lbl_result)
 
         def calc_sem(*e):
-            t1 = float(inputs["学年学费(元):"].text or 0)
-            t2 = float(inputs["学年住宿费(元):"].text or 0)
-            t3 = float(inputs["寒暑假往返车票(元):"].text or 0)
-            t4 = float(inputs["教材资料费(元):"].text or 0)
-            m = max(1.0, float(inputs["折算周期(月):"].text or 10))
-            per_m = (t1 + t2 + t3 + t4) / m
-            lbl_res.text = f"每月需分摊准备: {fmt(per_m)} 元/月"
-            return per_m
+            try:
+                tui = float(inputs["tuition"].text or 0)
+                m = max(1.0, float(inputs["months"].text or 1))
+                sup = float(inputs["support"].text or 0)
+                m_cost = tui / m
+                lbl_result.text = f"月均学杂费: ￥{fmt(m_cost)} | 建议月支配: ￥{fmt(sup)}"
+                return sup
+            except Exception:
+                return 0.0
 
         for ti in inputs.values():
             ti.bind(text=calc_sem)
+        calc_sem()
 
-        btn_bar = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(8))
-        btn_apply = ModernButton(text="✅ 同步至学习提升项", font_size=dp(12), bg_color=t["accent"])
-        btn_cancel = ModernButton(text="关闭", font_size=dp(12), bg_color=(0.55, 0.60, 0.68, 1))
-        popup = Popup(title="", separator_height=0, content=box, size_hint=(0.92, 0.65), background="", background_color=(0, 0, 0, 0.65))
+        btn_bar = BoxLayout(size_hint_y=None, height=dp(36), spacing=dp(10))
+        btn_apply = ModernButton(text="同步填入", font_size=dp(12), bold=True,
+                                 bg_color=t["btn_plan_bg"], color=t["btn_plan_fg"])
+        btn_close = ModernButton(text="关闭", font_size=dp(12),
+                                 bg_color=t.get("btn_secondary_bg", (0.85, 0.88, 0.92, 1)),
+                                 color=t.get("btn_secondary_fg", t["text_primary"]))
+
+        popup = Popup(title="", separator_height=0, content=content,
+                      size_hint=(0.88, 0.58), background="", background_color=(0, 0, 0, 0.65))
 
         def apply_and_close(*e):
-            val = calc_sem()
-            for it in self.expense_widgets:
-                if it["key"] == "study":
-                    it["txt"].text = f"{val:.0f}"
-                    break
+            sup = calc_sem()
+            self.in_income.text = str(int(round(sup)))
             self.refresh_preview()
+            self.auto_save_profile()
             popup.dismiss()
 
         btn_apply.bind(on_press=apply_and_close)
-        btn_cancel.bind(on_press=popup.dismiss)
+        btn_close.bind(on_press=popup.dismiss)
         btn_bar.add_widget(btn_apply)
-        btn_bar.add_widget(btn_cancel)
-        box.add_widget(btn_bar)
+        btn_bar.add_widget(btn_close)
+        content.add_widget(btn_bar)
+
         popup.open()
 
     def show_social_calculator(self, *a):
         t = THEMES[self.current_theme_key]
-        box = CardLayout(bg_color=t["bg_card"], border_color=t["border_card"], radius=14, auto_height=False)
-        box.add_widget(DynamicLabel(text="🏛️ 五险一金扣缴与个税参数配置", font_size=dp(13), bold=True, color=t["accent"]))
+        content = ModalCard(bg_color=t["bg_card"], radius=16, padding=dp(16), spacing=dp(10))
 
-        g = GridLayout(cols=2, spacing=dp(6), size_hint_y=None)
-        g.bind(minimum_height=g.setter('height'))
+        lbl_title = Label(text="五险一金实发税后精算", font_size=dp(14), bold=True,
+                          size_hint_y=None, height=dp(28), color=t["accent"], halign='center')
+        content.add_widget(lbl_title)
 
-        g.add_widget(Label(text="缴纳方式:", font_size=dp(12), color=t["text_secondary"], size_hint_y=None, height=dp(32)))
-        sp_mode = Spinner(text=self.social_mode, values=["无社保", "单位代缴", "个人全额自缴"], font_size=dp(12), size_hint_y=None, height=dp(32),
-                          background_color=t["accent"])
-        g.add_widget(sp_mode)
+        lbl_m_tip = Label(text="选择参保缴纳模式：", font_size=dp(11), color=t["text_secondary"],
+                          size_hint_y=None, height=dp(20), halign='left')
+        lbl_m_tip.bind(size=lbl_m_tip.setter('text_size'))
+        content.add_widget(lbl_m_tip)
 
-        g.add_widget(Label(text="社保公积金基数:", font_size=dp(12), color=t["text_secondary"], size_hint_y=None, height=dp(32)))
-        ti_base = TextInput(text=f"{self.social_base:.0f}", multiline=False, input_filter='float', font_size=dp(12), size_hint_y=None, height=dp(32),
-                            foreground_color=t["text_input"], background_color=t["bg_input"])
-        g.add_widget(ti_base)
+        mode_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(34), spacing=dp(6))
+        modes = ["单位代缴", "灵活就业", "无社保"]
+        mode_buttons = {}
 
-        g.add_widget(Label(text="个税专项扣除(元):", font_size=dp(12), color=t["text_secondary"], size_hint_y=None, height=dp(32)))
-        ti_deduct = TextInput(text=f"{self.tax_deduction:.0f}", multiline=False, input_filter='float', font_size=dp(12), size_hint_y=None, height=dp(32),
-                              foreground_color=t["text_input"], background_color=t["bg_input"])
-        g.add_widget(ti_deduct)
+        selected_mode = {"val": self.social_mode}
 
-        box.add_widget(g)
+        def update_mode_buttons():
+            for m_key, btn_obj in mode_buttons.items():
+                if m_key == selected_mode["val"]:
+                    btn_obj.set_style(t["accent"], (1, 1, 1, 1))
+                    btn_obj.bold = True
+                else:
+                    unselected_bg = t["bg_input"]
+                    btn_obj.set_style(unselected_bg, t["text_primary"])
+                    btn_obj.bold = False
 
-        btn_bar = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(8))
-        btn_apply = ModernButton(text="✅ 保存生效", font_size=dp(12), bg_color=t["accent"])
-        btn_cancel = ModernButton(text="关闭", font_size=dp(12), bg_color=(0.55, 0.60, 0.68, 1))
-        popup = Popup(title="", separator_height=0, content=box, size_hint=(0.92, 0.55), background="", background_color=(0, 0, 0, 0.65))
+        for m_name in modes:
+            b = ModernButton(text=m_name, font_size=dp(11), size_hint=(1, 1), radius=8)
+            def make_handler(m):
+                def on_click(*e):
+                    selected_mode["val"] = m
+                    update_mode_buttons()
+                return on_click
+            b.bind(on_press=make_handler(m_name))
+            mode_box.add_widget(b)
+            mode_buttons[m_name] = b
+
+        update_mode_buttons()
+        content.add_widget(mode_box)
+
+        row_base = BoxLayout(size_hint_y=None, height=dp(34), spacing=dp(6))
+        lbl_b = Label(text="社保基数:", font_size=dp(12), color=t["text_primary"], size_hint_x=0.4, halign='left')
+        lbl_b.bind(size=lbl_b.setter('text_size'))
+        ti_base = TextInput(text=str(int(self.social_base)), multiline=False, input_filter='float',
+                            font_size=dp(12), size_hint_x=0.6, foreground_color=t["text_primary"], background_color=t["bg_input"])
+        row_base.add_widget(lbl_b)
+        row_base.add_widget(ti_base)
+        content.add_widget(row_base)
+
+        row_tax = BoxLayout(size_hint_y=None, height=dp(34), spacing=dp(6))
+        lbl_t = Label(text="附加扣除:", font_size=dp(12), color=t["text_primary"], size_hint_x=0.4, halign='left')
+        lbl_t.bind(size=lbl_t.setter('text_size'))
+        ti_tax = TextInput(text=str(int(self.tax_deduction)), multiline=False, input_filter='float',
+                           font_size=dp(12), size_hint_x=0.6, foreground_color=t["text_primary"], background_color=t["bg_input"])
+        row_tax.add_widget(lbl_t)
+        row_tax.add_widget(ti_tax)
+        content.add_widget(row_tax)
+
+        btn_bar = BoxLayout(size_hint_y=None, height=dp(36), spacing=dp(10))
+        btn_apply = ModernButton(text="保存更新", font_size=dp(12), bold=True,
+                                 bg_color=t["btn_plan_bg"], color=t["btn_plan_fg"])
+        btn_close = ModernButton(text="关闭", font_size=dp(12),
+                                 bg_color=t.get("btn_secondary_bg", (0.85, 0.88, 0.92, 1)),
+                                 color=t.get("btn_secondary_fg", t["text_primary"]))
+
+        popup = Popup(title="", separator_height=0, content=content,
+                      size_hint=(0.88, 0.60), background="", background_color=(0, 0, 0, 0.65))
 
         def save_and_close(*e):
-            self.social_mode = sp_mode.text
+            self.social_mode = selected_mode["val"]
             self.social_base = float(ti_base.text or 0)
-            self.tax_deduction = float(ti_deduct.text or 0)
+            self.tax_deduction = float(ti_tax.text or 0)
             self.refresh_preview()
+            self.auto_save_profile()
             popup.dismiss()
 
         btn_apply.bind(on_press=save_and_close)
-        btn_cancel.bind(on_press=popup.dismiss)
+        btn_close.bind(on_press=popup.dismiss)
         btn_bar.add_widget(btn_apply)
-        btn_bar.add_widget(btn_cancel)
-        box.add_widget(btn_bar)
+        btn_bar.add_widget(btn_close)
+        content.add_widget(btn_bar)
+
         popup.open()
 
     def show_add_custom_popup(self, *a):
         t = THEMES[self.current_theme_key]
-        box = CardLayout(bg_color=t["bg_card"], border_color=t["border_card"], radius=14, auto_height=False)
-        box.add_widget(DynamicLabel(text="➕ 添加自定义月度支出项", font_size=dp(13), bold=True, color=t["accent"]))
+        content = ModalCard(bg_color=t["bg_card"], radius=16, padding=dp(16), spacing=dp(10))
 
-        g = GridLayout(cols=2, spacing=dp(6), size_hint_y=None)
-        g.bind(minimum_height=g.setter('height'))
+        lbl_title = Label(text="添加自定义预算项", font_size=dp(14), bold=True,
+                          size_hint_y=None, height=dp(28), color=t["accent"], halign='center')
+        content.add_widget(lbl_title)
 
-        g.add_widget(Label(text="支出名称:", font_size=dp(12), color=t["text_secondary"], size_hint_y=None, height=dp(32)))
-        ti_name = TextInput(text="额外分期/还贷", multiline=False, font_size=dp(12), size_hint_y=None, height=dp(32),
-                            foreground_color=t["text_input"], background_color=t["bg_input"])
-        g.add_widget(ti_name)
+        row_name = BoxLayout(size_hint_y=None, height=dp(34), spacing=dp(6))
+        lbl_n = Label(text="项目名称:", font_size=dp(12), color=t["text_primary"], size_hint_x=0.35, halign='left')
+        lbl_n.bind(size=lbl_n.setter('text_size'))
+        ti_name = TextInput(text="兴趣特长", multiline=False, font_size=dp(12),
+                            size_hint_x=0.65, foreground_color=t["text_primary"], background_color=t["bg_input"])
+        row_name.add_widget(lbl_n)
+        row_name.add_widget(ti_name)
+        content.add_widget(row_name)
 
-        g.add_widget(Label(text="预设金额(元):", font_size=dp(12), color=t["text_secondary"], size_hint_y=None, height=dp(32)))
-        ti_amt = TextInput(text="500", multiline=False, input_filter='float', font_size=dp(12), size_hint_y=None, height=dp(32),
-                            foreground_color=t["text_input"], background_color=t["bg_input"])
-        g.add_widget(ti_amt)
+        row_val = BoxLayout(size_hint_y=None, height=dp(34), spacing=dp(6))
+        lbl_v = Label(text="每月预算:", font_size=dp(12), color=t["text_primary"], size_hint_x=0.35, halign='left')
+        lbl_v.bind(size=lbl_v.setter('text_size'))
+        ti_val = TextInput(text="200", multiline=False, input_filter='float', font_size=dp(12),
+                           size_hint_x=0.65, foreground_color=t["text_primary"], background_color=t["bg_input"])
+        row_val.add_widget(lbl_v)
+        row_val.add_widget(ti_val)
+        content.add_widget(row_val)
 
-        box.add_widget(g)
+        btn_bar = BoxLayout(size_hint_y=None, height=dp(36), spacing=dp(10))
+        btn_add = ModernButton(text="确认添加", font_size=dp(12), bold=True,
+                               bg_color=t["btn_plan_bg"], color=t["btn_plan_fg"])
+        btn_close = ModernButton(text="取消", font_size=dp(12),
+                                 bg_color=t.get("btn_secondary_bg", (0.85, 0.88, 0.92, 1)),
+                                 color=t.get("btn_secondary_fg", t["text_primary"]))
 
-        btn_bar = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(8))
-        btn_add = ModernButton(text="✅ 确认添加", font_size=dp(12), bg_color=t["accent"])
-        btn_cancel = ModernButton(text="取消", font_size=dp(12), bg_color=(0.55, 0.60, 0.68, 1))
-        popup = Popup(title="", separator_height=0, content=box, size_hint=(0.88, 0.45), background="", background_color=(0, 0, 0, 0.65))
+        popup = Popup(title="", separator_height=0, content=content,
+                      size_hint=(0.85, 0.52), background="", background_color=(0, 0, 0, 0.65))
 
         def add_and_close(*e):
-            name = ti_name.text.strip()
-            amt = ti_amt.text.strip() or "0"
-            if name:
-                key = f"custom_{len(self.custom_items)+1}"
-                self.custom_items.append((key, name, amt, 0.0, 0.15, "自定义支出项目"))
-                self._build_expense_rows()
-                self.refresh_preview()
+            name = ti_name.text.strip() or "自定义项"
+            val = ti_val.text.strip() or "0"
+            key = f"cust_{len(self.custom_items) + 1}"
+            self.custom_items.append((key, name, val, 0.01, 0.08, "自定义补充支出"))
+            self._build_expense_rows()
+            self.refresh_preview()
+            self.auto_save_profile()
             popup.dismiss()
 
         btn_add.bind(on_press=add_and_close)
-        btn_cancel.bind(on_press=popup.dismiss)
+        btn_close.bind(on_press=popup.dismiss)
         btn_bar.add_widget(btn_add)
-        btn_bar.add_widget(btn_cancel)
-        box.add_widget(btn_bar)
+        btn_bar.add_widget(btn_close)
+        content.add_widget(btn_bar)
+
         popup.open()
 
-    def show_wechat_bill_popup(self, *a):
-        t = THEMES[self.current_theme_key]
-        box = CardLayout(bg_color=t["bg_card"], border_color=t["border_card"], radius=14, auto_height=False)
-        box.add_widget(DynamicLabel(text="🧾 微信账单文本识别 (粘贴微信支付文本或账单记录)", font_size=dp(13), bold=True, color=t["accent"]))
-
-        sample_demo = "美团外卖 35.5元\n瑞幸咖啡 14.9元\n滴滴出行 18.0元\n朴朴超市 56.2元\n中国移动话费 50.0元"
-        ti_bill = TextInput(text=sample_demo, multiline=True, font_size=dp(12), size_hint=(1, 1),
-                            foreground_color=t["text_input"], background_color=t["bg_input"])
-        box.add_widget(ti_bill)
-
-        lbl_parse = DynamicLabel(text="点击【智能识别】自动归类餐饮、茶饮、出行、网购等", font_size=dp(12), color=t["accent_green"])
-        box.add_widget(lbl_parse)
-
-        parsed_totals = {}
-
-        def parse_text(*e):
-            nonlocal parsed_totals
-            parsed_totals = {}
-            lines = ti_bill.text.split("\n")
-            count = 0
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    continue
-                nums = re.findall(r"(\d+(?:\.\d+)?)", line)
-                if nums:
-                    val = float(nums[-1])
-                    key = "other"
-                    for k, n, kws in [
-                        ("drink", "烟酒茶饮", ["瑞幸", "咖啡", "奶茶", "蜜雪", "喜茶"]),
-                        ("food", "餐饮饮食", ["美团", "饿了么", "快餐", "食堂", "外卖", "面馆"]),
-                        ("transport", "交通通勤", ["滴滴", "地铁", "公交", "单车", "出行"]),
-                        ("phone", "通讯话费", ["话费", "移动", "联通", "电信"]),
-                        ("shopping", "购物网购", ["超市", "淘宝", "京东", "拼多多", "便利店"]),
-                    ]:
-                        for kw in kws:
-                            if kw.lower() in line.lower():
-                                key = k
-                                break
-                    parsed_totals[key] = parsed_totals.get(key, 0.0) + val
-                    count += 1
-            summary_str = " ｜ ".join([f"{k}:{fmt(v)}元" for k, v in parsed_totals.items()])
-            lbl_parse.text = f"✅ 已成功识别 {count} 笔账单！\n汇总: {summary_str}"
-
-        btn_parse = ModernButton(text="🔍 智能分析分类", font_size=dp(12), size_hint_y=None, height=dp(36), bg_color=(0.18, 0.52, 0.88, 1))
-        btn_parse.bind(on_press=parse_text)
-        box.add_widget(btn_parse)
-
-        btn_bar = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(8))
-        btn_sync = ModernButton(text="📥 一键同步到预算表", font_size=dp(12), bg_color=(0.08, 0.62, 0.38, 1))
-        btn_cancel = ModernButton(text="关闭", font_size=dp(12), bg_color=(0.55, 0.60, 0.68, 1))
-        popup = Popup(title="", separator_height=0, content=box, size_hint=(0.95, 0.75), background="", background_color=(0, 0, 0, 0.65))
-
-        def sync_and_close(*e):
-            for k, val in parsed_totals.items():
-                for it in self.expense_widgets:
-                    if it["key"] == k:
-                        it["txt"].text = f"{val:.0f}"
-            self.refresh_preview()
-            popup.dismiss()
-
-        btn_sync.bind(on_press=sync_and_close)
-        btn_cancel.bind(on_press=popup.dismiss)
-        btn_bar.add_widget(btn_sync)
-        btn_bar.add_widget(btn_cancel)
-        box.add_widget(btn_bar)
-        popup.open()
-
-    # ==================== 全维安全与财务规划报告生成 (无杂线·纯净排版) ====================
-    def generate_security_report(self):
+    def generate_report_text(self):
         d = self.compute()
-        takehome = d["takehome"]
-        tier = get_tier_info(takehome)
-        assets = d["savings"] + d["invest"]
-        ident = self.spinner_id.text
-        p = IDENTITY_PRESETS.get(ident, {})
-        em_need = d["total_exp"] * p.get("emergency_months", 2)
-        em_gap = max(0.0, em_need - assets)
+        takehome = max(1.0, d["takehome"])
+        debt = d["debt"]
+        debt_rate = d["debt_rate"]
+        total_exp = d["total_exp"]
+        surplus = d["surplus"]
+        sr = d["surplus_rate"]
+        target = d["target_surplus"]
+        g_name = "男生版 (科技爱好画像)" if self.current_gender == "male" else "女生版 (品质生活画像)"
 
-        L = []
-        L.append("🛡️ 个人全维财务与安全规划报告")
-        L.append("")
-        L.append("【基础档案与现金流概况】")
-        L.append(f"• 身份定位：{ident}")
-        L.append(f"• 现实特质：{p.get('feature', '')}")
-        L.append(f"• 薪资梯队：{tier['tag']}")
-        L.append(f"• 到手可用：¥{fmt(takehome)} 元/月")
-        L.append(f"• 预算支出：¥{fmt(d['total_exp'])} 元/月")
-        L.append(f"• 每月净结余：¥{fmt(d['surplus'])} 元 (实际储蓄率 {d['savings_rate']*100:.1f}%)")
-        L.append("")
-        L.append("【一、现金流与到手实拿拆解】")
-        L.append(f"• 名义税前收入：¥{fmt(d['income'])} 元")
-        L.append(f"• 社保个人代扣：-¥{fmt(d['social_p'])} 元 (缴存方式: {self.social_mode})")
-        L.append(f"• 个人所得税：-¥{fmt(d['tax'])} 元")
-        L.append(f"• 实拿到手净额：¥{fmt(takehome)} 元")
-        if d['social_e'] > 0:
-            L.append(f"• 单位隐性福利配缴：约 ¥{fmt(d['social_e'])} 元/月")
-        L.append("")
-        L.append("【二、资金链与三阶蓄水池安全防线】")
-        L.append("1. 第一级：日常周转池 (0.5~1个月支出)")
-        L.append(f"   存放工具：微信零钱通 / 支付宝余额宝")
-        L.append(f"   建议额度：约 ¥{fmt(d['total_exp']*0.5)} ~ ¥{fmt(d['total_exp'])} 元，随用随扣")
-        L.append("2. 第二级：刚性应急防线 (2~3个月支出)")
-        L.append(f"   安全底线：{p.get('emergency_months', 2)} 个月基础开销 = ¥{fmt(em_need)} 元")
-        L.append(f"   当前储备：¥{fmt(assets)} 元")
-        if em_gap > 0:
-            save_per_m = max(100, d['surplus'])
-            m_reach = em_gap / save_per_m
-            L.append(f"   补充进度：尚差 ¥{fmt(em_gap)} 元，每月结余填充预计约 {m_reach:.1f} 个月达成！")
+        # 1. 财务健康综合评估
+        if surplus < 0:
+            health_grade = "【预警赤字】"
+            grade_desc = f"当前月度收支倒挂 -￥{fmt(-surplus)} 元，存在透支风险，建议削减非刚需或重组债务。"
+        elif sr < 0.10:
+            health_grade = "【紧平衡型】"
+            grade_desc = f"每月结余 ￥{fmt(surplus)} 元，收支接近平衡，抗风险缓冲偏弱，建议适当压缩弹性支出。"
+        elif sr < 0.25:
+            health_grade = "【稳健成长型】"
+            grade_desc = f"每月结余 ￥{fmt(surplus)} 元 (结余率 {sr*100:.1f}%)，现金流良好，具备稳定抗风险能力。"
         else:
-            L.append("   状态评估：应急防线已足额充实，护城河稳固！")
-        L.append("3. 第三级：中期缓冲池 (3~6个月支出)")
-        L.append("   存放工具：纯债基金 / 稳健低波理财，用于应对换城市、换工作空窗期跨周期抗风险")
-        L.append("")
-        L.append("【三、零负债与反信贷陷阱红线】")
-        L.append("• 铁律准则：普通工薪与新人阶段，消费性负债坚决为 0！")
-        L.append("• 揭露套路：免息分期表面手续费 0.6%/期，真实内部收益率(IRR)年化高达 13%~18%")
-        L.append("• 杜绝最低还款：日息万五、全额罚息，折合年化高达 18.25%")
-        L.append("• 坚决抵制任何网络小贷、借条及高息借贷，切莫以贷养贷")
-        L.append("")
-        L.append("【四、人身抗风险杠杆防护网】")
-        L.append("• 基础兜底：必须参保国家基本医疗保险（职工医保或居民医保）")
-        L.append("• 工薪必备核心杠杆：一年期【百万医疗险】")
-        L.append("  年保费仅两三百元，享数百万保额，自费药特药100%报销，彻底阻断因病致贫")
-        L.append("• 基础防身：一年期【综合意外险】(年费50~100元)")
-        L.append("• 避坑提醒：低收入期严禁购买每年数千上万元的返还型终身重疾险，避免断缴损失本金")
-        L.append("")
-        L.append("【五、资产配置与务实理财分级】")
-        L.append(f"• 当前流动总资产：¥{fmt(assets)} 元 (活期存款 ¥{fmt(d['savings'])} 元 + 理财 ¥{fmt(d['invest'])} 元)")
-        if assets < 10000:
-            L.append("• 阶段定位：活期安全垫筑基期 (总资产 < 1万元)")
-            L.append("• 务实方案：100% 保持高流动性活期 (零钱通/余额宝)，严禁炒股与盲目定投，专心防身与开源！")
-        elif assets < 50000:
-            L.append("• 阶段定位：稳健防守积累期 (1万~5万元)")
-            L.append("• 务实方案：60% 活期备用金 + 40% 低波纯债基金/同业存单，保本不亏、随时可取")
+            health_grade = "【充裕结余型】"
+            grade_desc = f"每月结余 ￥{fmt(surplus)} 元 (结余率 {sr*100:.1f}%)，资金充沛，资产积累潜力强劲。"
+
+        # 2. 负债与偿债诊断 (温和客观)
+        if debt <= 0:
+            debt_eval = "零负债状态，无月供还款负担，资金支配自由度高。"
+        elif debt_rate <= 0.20:
+            debt_eval = f"月供 ￥{fmt(debt)} 元，偿债率 {debt_rate*100:.1f}%，处于安全良性区间，月供压力轻微。"
+        elif debt_rate <= 0.40:
+            debt_eval = f"月供 ￥{fmt(debt)} 元，偿债率 {debt_rate*100:.1f}%，月供适中可控，建议保留3个月流动资金防备还款波动。"
+        elif debt_rate <= 0.60:
+            debt_eval = f"月供 ￥{fmt(debt)} 元，偿债率 {debt_rate*100:.1f}%，负债压力偏重，每月超三成收入用于还债，建议优先偿还高息借贷。"
         else:
-            L.append("• 阶段定位：多元资产配置期 (≥5万元)")
-            L.append("• 务实方案：本金已初具规模，启动现金、纯债、宽基指数ETF定投及黄金的多元配置")
-        return "\n".join(L)
+            debt_eval = f"月供 ￥{fmt(debt)} 元，偿债率 {debt_rate*100:.1f}%，处于高负债预警区间，需严格节流并暂停一切新增分期消费。"
+
+        # 3. 目标储蓄达成评估
+        if target > 0:
+            if surplus >= target:
+                achieve_rate = (surplus / target * 100)
+                target_eval = f"达成储蓄目标 (达成率 {achieve_rate:.0f}%)，超额 ￥{fmt(surplus - target)} 元"
+            else:
+                gap = target - surplus
+                target_eval = f"距 ￥{fmt(target)} 目标尚差 ￥{fmt(gap)} 元，可通过微调生活消费达成"
+        else:
+            target_eval = "未设定储蓄目标，当前为自由结余模式"
+
+        # 4. 三层收支架构
+        essential_keys = {"housing", "food", "transport", "phone", "health", "period", "hair", "groom"}
+        lifestyle_keys = {"shop", "pet", "travel", "digital", "beauty", "clothes", "drink", "sport", "game", "fun"}
+        growth_keys = {"study", "other"}
+
+        exp_map = d["expenses"]
+        sum_ess = sum(exp_map.get(k, 0) for k in essential_keys)
+        sum_life = sum(exp_map.get(k, 0) for k in lifestyle_keys)
+        sum_growth = sum(exp_map.get(k, 0) for k in growth_keys)
+
+        pct_ess = sum_ess / takehome * 100
+        pct_life = sum_life / takehome * 100
+        pct_growth = (sum_growth + max(0, surplus)) / takehome * 100
+
+        # 5. 务实优化建议
+        advice = []
+        if surplus < 0:
+            advice.append("· 预算当前处于透支状态，建议使用[一键智能精算]自动重新平摊预算。")
+        if debt_rate > 0.40:
+            advice.append("· 偿债负担偏重，建议暂停非必要分期付款，加速清偿高成本债务。")
+
+        food_val = exp_map.get("food", 0)
+        food_pct = food_val / takehome * 100
+        if food_pct > 32:
+            advice.append(f"· 伙食占到手 {food_pct:.0f}% 略高，可通过下厨或控制周末聚餐频次平抑开支。")
+
+        shop_val = exp_map.get("shop", 0)
+        if shop_val / takehome > 0.15:
+            advice.append("· 网购消费占比偏高，建议针对非急需好物设置48小时冷静期。")
+
+        pet_val = exp_map.get("pet", 0)
+        if pet_val > 0:
+            advice.append(f"· 宠物养护每月预算 ￥{fmt(pet_val)} 元，建议提前预留宠物医疗应急资金。")
+
+        travel_val = exp_map.get("travel", 0)
+        if travel_val > 0:
+            advice.append(f"· 旅游出行每月平摊 ￥{fmt(travel_val)} 元，适合采用专项活期定存按月积累。")
+
+        if not advice:
+            advice.append("· 当前各项开销结构合理，现金流健康，保持当前规划节奏即可。")
+
+        # 组装清晰纯净的报告文本 (无说教、无冗余安全提示)
+        lines = [
+            "【个人财务规划分析报告】",
+            "",
+            "一、核心收支与负债总览",
+            f"· 规划模型：{g_name}  |  身份：{self.active_identity}",
+            f"· 税前月薪：￥{fmt(d['income'])}  |  实发到手：￥{fmt(takehome)}",
+            f"· 月度负债还款：￥{fmt(debt)}  |  偿债诊断：{debt_eval}",
+            f"· 预算生活支出：￥{fmt(total_exp)}  |  支出率：{total_exp/takehome*100:.1f}%",
+            f"· 月度净结余：{'-￥' + fmt(-surplus) if surplus < 0 else '￥' + fmt(surplus)} (结余率 {sr*100:.1f}%)",
+            f"· 财务评级：{health_grade} - {grade_desc}",
+            f"· 目标储蓄：￥{fmt(target)}  |  状态：{target_eval}",
+            "",
+            "二、资金分布架构 (参考 50/30/20 分布模型)",
+            f"1.【生存刚需】：￥{fmt(sum_ess)} ({pct_ess:.1f}%)",
+            f"   涵盖餐饮、房租、通勤、话费、医疗、生理/修容美发等刚性支出。",
+            f"2.【品质与兴趣】：￥{fmt(sum_life)} ({pct_life:.1f}%)",
+            f"   涵盖穿搭、数码、美妆、茶饮、社交娱乐、旅游、宠物等生活体验。",
+            f"3.【成长与结余】：￥{fmt(sum_growth + max(0, surplus))} ({pct_growth:.1f}%)",
+            f"   涵盖自我提升、机动备用与每月实际沉淀结余。",
+            "",
+            "三、财务优化建议",
+            "\n".join(advice),
+            "",
+            "四、支出细目精算清单"
+        ]
+
+        for it in self.expense_widgets:
+            amt = self._num(it["txt"])
+            pct = (amt / takehome * 100) if takehome > 0 else 0
+            lock_str = " [已锁定]" if it["lock"].is_locked else ""
+            lines.append(f"· {it['name']}：￥{fmt(amt)} ({pct:.0f}%){lock_str}")
+
+        return "\n".join(lines)
 
     def show_report_popup(self, *args):
-        report_text = self.generate_security_report()
         t = THEMES[self.current_theme_key]
+        report_text = self.generate_report_text()
 
-        content = CardLayout(bg_color=t["bg_card"], border_color=t["border_card"], radius=14, auto_height=False)
-        content.size_hint = (1, 1)
+        content = ModalCard(bg_color=t["bg_card"], radius=16, padding=dp(16), spacing=dp(10))
 
-        top_box = BoxLayout(size_hint_y=None, height=dp(36))
-        lbl_p_title = Label(text="🛡️ 全维安全与财务规划报告", font_size=dp(15), bold=True,
-                            color=t["accent"], halign='left')
-        lbl_p_title.bind(size=lbl_p_title.setter('text_size'))
-        top_box.add_widget(lbl_p_title)
-        content.add_widget(top_box)
+        lbl_p_title = Label(text="个人财务精算报告", font_size=dp(15), bold=True,
+                            size_hint_y=None, height=dp(28), color=t["accent"], halign='center')
+        content.add_widget(lbl_p_title)
 
-        # 报告文本展示区域（大字号 dp(13.5) 高对比度）
         sv = ScrollView(size_hint=(1, 1), do_scroll_x=False)
-        lbl_rpt = DynamicLabel(text=report_text, font_size=dp(13.5), color=t["text_primary"])
+        lbl_rpt = DynamicLabel(text=report_text, font_size=dp(12), color=t["text_primary"])
         sv.add_widget(lbl_rpt)
         content.add_widget(sv)
 
-        btn_bar = BoxLayout(size_hint_y=None, height=dp(42), spacing=dp(10))
-        btn_copy = ModernButton(text="📋 一键复制完整报告", font_size=dp(13), bold=True,
-                                bg_color=t["accent"], color=(1, 1, 1, 1))
-        btn_close = ModernButton(text="关闭", font_size=dp(13),
-                                 bg_color=(0.55, 0.60, 0.68, 1), color=(1, 1, 1, 1))
+        btn_bar = BoxLayout(size_hint_y=None, height=dp(38), spacing=dp(10))
+        btn_copy = ModernButton(text="一键复制简报", font_size=dp(12), bold=True,
+                                bg_color=t["btn_report_bg"], color=t["btn_report_fg"])
+        btn_close = ModernButton(text="关闭", font_size=dp(12),
+                                 bg_color=t.get("btn_secondary_bg", (0.85, 0.88, 0.92, 1)),
+                                 color=t.get("btn_secondary_fg", t["text_primary"]))
 
         popup = Popup(title="", separator_height=0, content=content,
-                      size_hint=(0.95, 0.90), background="", background_color=(0, 0, 0, 0.65))
+                      size_hint=(0.92, 0.85), background="", background_color=(0, 0, 0, 0.65))
 
         def copy_and_toast(instance):
             Clipboard.copy(report_text)
-            btn_copy.text = "✅ 已复制到手机剪贴板！"
+            btn_copy.text = "已复制到手机剪贴板！"
 
         btn_copy.bind(on_press=copy_and_toast)
         btn_close.bind(on_press=popup.dismiss)
